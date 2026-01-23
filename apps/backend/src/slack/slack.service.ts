@@ -173,6 +173,36 @@ export class SlackService implements OnModuleInit {
     }
   }
 
+  async listUsers(): Promise<
+    Array<{ id: string; name: string; real_name?: string; email?: string }>
+  > {
+    const client = this.getClient();
+    const users: Array<{
+      id: string;
+      name: string;
+      real_name?: string;
+      email?: string;
+    }> = [];
+
+    let cursor: string | undefined;
+    do {
+      const result = await client.users.list({ cursor, limit: 200 });
+      for (const member of result.members || []) {
+        if (member.deleted || member.is_bot || member.id === "USLACKBOT")
+          continue;
+        users.push({
+          id: member.id!,
+          name: member.name!,
+          real_name: member.real_name,
+          email: member.profile?.email,
+        });
+      }
+      cursor = result.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+
+    return users;
+  }
+
   private sanitizeChannelName(name: string): string {
     // Slack channel names: lowercase, max 80 chars
     // Only allows: lowercase letters, numbers, underscores

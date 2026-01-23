@@ -1,11 +1,7 @@
-import { Module, forwardRef } from "@nestjs/common";
-import { IntegrationModule } from "../integration/integration.module";
-import { SlackController } from "./slack.controller";
+import { Module } from "@nestjs/common";
 import { SlackService } from "./slack.service";
 
 @Module({
-  imports: [forwardRef(() => IntegrationModule)],
-  controllers: [SlackController],
   providers: [SlackService],
   exports: [SlackService],
 })

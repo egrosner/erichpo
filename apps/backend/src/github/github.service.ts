@@ -115,6 +115,38 @@ export class GitHubService implements OnModuleInit {
     return null;
   }
 
+  async getInstallationForRepo(
+    owner: string,
+    repo: string
+  ): Promise<number> {
+    if (!this.app) {
+      throw new Error("GitHub App not initialized");
+    }
+
+    const response =
+      await this.app.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    return response.data.id;
+  }
+
+  async getCollaborators(
+    owner: string,
+    repo: string,
+    installationId?: number
+  ): Promise<Array<{ login: string; role: string }>> {
+    const octokit = await this.getOctokit(installationId);
+
+    const response = await octokit.rest.repos.listCollaborators({
+      owner,
+      repo,
+      per_page: 100,
+    });
+
+    return response.data.map((c) => ({
+      login: c.login!,
+      role: c.role_name || "unknown",
+    }));
+  }
+
   async getTeamMembers(
     org: string,
     teamSlug: string,

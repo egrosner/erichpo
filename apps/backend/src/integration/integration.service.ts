@@ -80,6 +80,8 @@ export class IntegrationService {
     try {
       const authorSlackId = await this.resolveGitHubUserToSlack(
         pr.user.login,
+        repository.owner.login,
+        repository.name,
         installation?.id
       );
       if (authorSlackId) {
@@ -256,6 +258,8 @@ export class IntegrationService {
       if (event.requested_reviewer) {
         const slackId = await this.resolveGitHubUserToSlack(
           event.requested_reviewer.login,
+          repository.owner.login,
+          repository.name,
           installation?.id
         );
         if (slackId) slackUserIds.push(slackId);
@@ -271,6 +275,8 @@ export class IntegrationService {
           try {
             const slackId = await this.resolveGitHubUserToSlack(
               member,
+              repository.owner.login,
+              repository.name,
               installation?.id
             );
             if (slackId) slackUserIds.push(slackId);
@@ -542,6 +548,8 @@ export class IntegrationService {
 
   private async resolveGitHubUserToSlack(
     username: string,
+    owner: string,
+    repo: string,
     installationId?: number
   ): Promise<string | null> {
     // Check DB cache
@@ -550,13 +558,15 @@ export class IntegrationService {
     });
     if (cached) return cached.slackUserId;
 
-    // Get email from GitHub
+    // Get email from GitHub (profile or commit history)
     const email = await this.githubService.getUserEmail(
       username,
+      owner,
+      repo,
       installationId
     );
     if (!email) {
-      this.logger.warn(`No public email found for GitHub user ${username}`);
+      this.logger.warn(`No email found for GitHub user ${username}`);
       return null;
     }
 

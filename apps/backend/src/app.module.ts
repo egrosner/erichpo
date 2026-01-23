@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AppController } from "./app.controller";
 import { ConfigModule } from "./config";
 import { DatabaseModule } from "./database";
 import { GitHubModule } from "./github";
@@ -13,5 +14,6 @@ import { SlackModule } from "./slack";
     SlackModule,
     IntegrationModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}

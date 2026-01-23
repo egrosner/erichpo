@@ -76,6 +76,21 @@ export class IntegrationService {
       this.buildPrOpenedBlocks(pr, repository.full_name)
     );
 
+    // Invite PR author to the channel
+    try {
+      const authorSlackId = await this.resolveGitHubUserToSlack(
+        pr.user.login,
+        installation?.id
+      );
+      if (authorSlackId) {
+        await this.slackService.inviteToChannel(channelId, [authorSlackId]);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Could not invite PR author ${pr.user.login} to channel: ${(error as Error).message}`
+      );
+    }
+
     // Record delivery
     await this.recordDelivery(deliveryId, "github");
 
@@ -116,8 +131,18 @@ export class IntegrationService {
       this.buildPrClosedBlocks(pr, isMerged)
     );
 
-    // Schedule archival
-    this.scheduleChannelArchival(mapping.id);
+    // Archive the channel
+    try {
+      await this.slackService.archiveChannel(mapping.slackChannelId);
+      await this.db.prChannelMapping.update({
+        where: { id: mapping.id },
+        data: { archivedAt: new Date() },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not archive channel ${mapping.slackChannelId}: ${(error as Error).message}`
+      );
+    }
 
     await this.recordDelivery(deliveryId, "github");
   }
@@ -202,6 +227,89 @@ export class IntegrationService {
           text: {
             type: "mrkdwn",
             text: `:arrow_up: *New commits pushed* by ${sender.login}\nHead: \`${pr.head.sha.substring(0, 7)}\``,
+          },
+        },
+      ]
+    );
+
+    await this.recordDelivery(deliveryId, "github");
+  }
+
+  async handleReviewRequested(
+    event: PullRequestEvent,
+    deliveryId: string
+  ): Promise<void> {
+    if (await this.isDuplicateDelivery(deliveryId, "github")) return;
+
+    const { pull_request: pr, repository, installation } = event;
+
+    const mapping = await this.findMapping(
+      repository.owner.login,
+      repository.name,
+      pr.number
+    );
+    if (!mapping) return;
+
+    const slackUserIds: string[] = [];
+
+    try {
+      if (event.requested_reviewer) {
+        const slackId = await this.resolveGitHubUserToSlack(
+          event.requested_reviewer.login,
+          installation?.id
+        );
+        if (slackId) slackUserIds.push(slackId);
+      }
+
+      if (event.requested_team) {
+        const members = await this.githubService.getTeamMembers(
+          repository.owner.login,
+          event.requested_team.slug,
+          installation?.id
+        );
+        for (const member of members) {
+          try {
+            const slackId = await this.resolveGitHubUserToSlack(
+              member,
+              installation?.id
+            );
+            if (slackId) slackUserIds.push(slackId);
+          } catch (error) {
+            this.logger.warn(
+              `Could not resolve team member ${member} to Slack: ${(error as Error).message}`
+            );
+          }
+        }
+      }
+
+      if (slackUserIds.length > 0) {
+        await this.slackService.inviteToChannel(
+          mapping.slackChannelId,
+          slackUserIds
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Error inviting reviewers to channel: ${(error as Error).message}`
+      );
+    }
+
+    // Post notification about review request
+    const reviewerName = event.requested_reviewer
+      ? event.requested_reviewer.login
+      : event.requested_team
+        ? `team ${event.requested_team.name}`
+        : "unknown";
+
+    await this.slackService.postMessage(
+      mapping.slackChannelId,
+      `Review requested from ${reviewerName}`,
+      [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `:eyes: *Review requested* from *${reviewerName}*`,
           },
         },
       ]
@@ -432,6 +540,43 @@ export class IntegrationService {
     return `${prefix}${repo}_${prNumber}_${branch}`;
   }
 
+  private async resolveGitHubUserToSlack(
+    username: string,
+    installationId?: number
+  ): Promise<string | null> {
+    // Check DB cache
+    const cached = await this.db.gitHubSlackUserMapping.findUnique({
+      where: { githubUsername: username },
+    });
+    if (cached) return cached.slackUserId;
+
+    // Get email from GitHub
+    const email = await this.githubService.getUserEmail(
+      username,
+      installationId
+    );
+    if (!email) {
+      this.logger.warn(`No public email found for GitHub user ${username}`);
+      return null;
+    }
+
+    // Lookup Slack user by email
+    const slackUserId = await this.slackService.lookupUserByEmail(email);
+    if (!slackUserId) {
+      this.logger.warn(
+        `No Slack user found for email ${email} (GitHub: ${username})`
+      );
+      return null;
+    }
+
+    // Cache the mapping
+    await this.db.gitHubSlackUserMapping.create({
+      data: { githubUsername: username, slackUserId },
+    });
+
+    return slackUserId;
+  }
+
   private async findMapping(owner: string, repo: string, prNumber: number) {
     return this.db.prChannelMapping.findUnique({
       where: {
@@ -460,32 +605,6 @@ export class IntegrationService {
     });
   }
 
-  private scheduleChannelArchival(mappingId: number): void {
-    const hours =
-      this.configService.get<number>("channel.autoArchiveHours") || 168;
-    const delayMs = hours * 60 * 60 * 1000;
-
-    setTimeout(async () => {
-      try {
-        const mapping = await this.db.prChannelMapping.findUnique({
-          where: { id: mappingId },
-        });
-
-        if (mapping && mapping.status !== "open" && !mapping.archivedAt) {
-          await this.slackService.archiveChannel(mapping.slackChannelId);
-          await this.db.prChannelMapping.update({
-            where: { id: mappingId },
-            data: { archivedAt: new Date() },
-          });
-          this.logger.log(
-            `Archived channel ${mapping.slackChannelName} after PR close`
-          );
-        }
-      } catch (error) {
-        this.logger.error(`Failed to archive channel for mapping ${mappingId}`, error);
-      }
-    }, delayMs);
-  }
 
   // ========== Slack Block Builders ==========
 
@@ -566,7 +685,7 @@ export class IntegrationService {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `_This channel will be archived in ${this.configService.get<number>("channel.autoArchiveHours") || 168} hours_`,
+          text: `_This channel will be archived._`,
         },
       },
     ];

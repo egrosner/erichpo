@@ -88,6 +88,10 @@ export class GitHubController {
         await this.integrationService.handlePrSynchronize(event, deliveryId);
         break;
 
+      case "review_requested":
+        await this.integrationService.handleReviewRequested(event, deliveryId);
+        break;
+
       default:
         this.logger.debug(`Ignoring pull_request action: ${event.action}`);
     }

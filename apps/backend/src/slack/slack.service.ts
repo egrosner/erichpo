@@ -140,6 +140,39 @@ export class SlackService implements OnModuleInit {
     };
   }
 
+  async lookupUserByEmail(email: string): Promise<string | null> {
+    const client = this.getClient();
+
+    try {
+      const result = await client.users.lookupByEmail({ email });
+      return result.user?.id || null;
+    } catch (error: any) {
+      if (error?.data?.error === "users_not_found") {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async inviteToChannel(channelId: string, userIds: string[]): Promise<void> {
+    if (userIds.length === 0) return;
+
+    const client = this.getClient();
+
+    try {
+      await client.conversations.invite({
+        channel: channelId,
+        users: userIds.join(","),
+      });
+    } catch (error: any) {
+      // Handle already_in_channel gracefully
+      if (error?.data?.error === "already_in_channel") {
+        return;
+      }
+      throw error;
+    }
+  }
+
   private sanitizeChannelName(name: string): string {
     // Slack channel names: lowercase, max 80 chars
     // Only allows: lowercase letters, numbers, underscores

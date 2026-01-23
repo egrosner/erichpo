@@ -107,7 +107,7 @@ SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
 
 DATABASE_URL=file:./data/pr-channels.db
-SLACK_CHANNEL_PREFIX=pr-
+SLACK_CHANNEL_PREFIX=_pr_
 ```
 
 ### 4. Local Development with Webhooks

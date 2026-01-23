@@ -210,7 +210,7 @@ export class SlackService implements OnModuleInit {
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, "_")
       .replace(/_+/g, "_")
-      .replace(/^_|_$/g, "")
+      .replace(/_$/g, "")
       .substring(0, 80);
   }
 }

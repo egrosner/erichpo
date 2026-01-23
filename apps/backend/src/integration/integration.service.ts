@@ -423,12 +423,13 @@ export class IntegrationService {
     prNumber: number,
     branchName: string
   ): string {
-    const prefix = this.configService.get<string>("channel.prefix") || "pr-";
+    const prefix = this.configService.get<string>("channel.prefix") || "pr_";
+    const repo = repoName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
     const branch = branchName
-      .replace(/[^a-z0-9]/gi, "-")
+      .replace(/[^a-z0-9]/gi, "_")
       .toLowerCase()
       .substring(0, 30);
-    return `${prefix}${repoName}-${prNumber}-${branch}`;
+    return `${prefix}${repo}_${prNumber}_${branch}`;
   }
 
   private async findMapping(owner: string, repo: string, prNumber: number) {

@@ -141,13 +141,13 @@ export class SlackService implements OnModuleInit {
   }
 
   private sanitizeChannelName(name: string): string {
-    // Slack channel names: lowercase, no spaces, max 80 chars
-    // Only allows: lowercase letters, numbers, hyphens
+    // Slack channel names: lowercase, max 80 chars
+    // Only allows: lowercase letters, numbers, underscores
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9-]/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
+      .replace(/[^a-z0-9_]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "")
       .substring(0, 80);
   }
 }

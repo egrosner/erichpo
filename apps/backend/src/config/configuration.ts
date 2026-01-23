@@ -20,7 +20,7 @@ const configSchema = z.object({
   }),
 
   channel: z.object({
-    prefix: z.string().default("pr-"),
+    prefix: z.string().default("pr_"),
     autoArchiveHours: z.coerce.number().default(168), // 7 days
   }),
 });

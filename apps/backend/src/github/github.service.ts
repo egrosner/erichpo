@@ -83,4 +83,32 @@ export class GitHubService implements OnModuleInit {
 
     return response.data;
   }
+
+  async getUserEmail(
+    username: string,
+    installationId?: number
+  ): Promise<string | null> {
+    const octokit = await this.getOctokit(installationId);
+
+    const response = await octokit.rest.users.getByUsername({
+      username,
+    });
+
+    return response.data.email || null;
+  }
+
+  async getTeamMembers(
+    org: string,
+    teamSlug: string,
+    installationId?: number
+  ): Promise<string[]> {
+    const octokit = await this.getOctokit(installationId);
+
+    const response = await octokit.rest.teams.listMembersInOrg({
+      org,
+      team_slug: teamSlug,
+    });
+
+    return response.data.map((member) => member.login);
+  }
 }

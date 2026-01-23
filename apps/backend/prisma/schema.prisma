@@ -48,3 +48,13 @@ model WebhookDelivery {
 
   @@map("webhook_deliveries")
 }
+
+model GitHubSlackUserMapping {
+  id              Int      @id @default(autoincrement())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  githubUsername  String   @unique
+  slackUserId     String
+
+  @@map("github_slack_user_mappings")
+}

@@ -63,6 +63,12 @@ const installationSchema = z
   })
   .optional();
 
+const teamSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  slug: z.string(),
+});
+
 // Pull Request Events
 export const pullRequestEventSchema = z.object({
   action: z.enum([
@@ -73,12 +79,15 @@ export const pullRequestEventSchema = z.object({
     "synchronize",
     "ready_for_review",
     "converted_to_draft",
+    "review_requested",
   ]),
   number: z.number(),
   pull_request: pullRequestSchema,
   repository: repositorySchema,
   sender: userSchema,
   installation: installationSchema,
+  requested_reviewer: userSchema.optional(),
+  requested_team: teamSchema.optional(),
 });
 
 // Issue Comment Events (PR comments appear here)

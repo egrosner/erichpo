@@ -36,7 +36,8 @@ pnpm dev
      - Issues: Read & Write (needed for PR comments)
      - Pull requests: Read & Write
      - Checks: Read-only
-   - **Organization permissions**: None needed
+   - **Organization permissions**:
+     - Members: Read-only (needed to resolve team reviewers)
 4. Subscribe to **events**:
    - Pull request
    - Pull request review
@@ -66,6 +67,7 @@ pnpm dev
      - `channels:read` (read channel info)
      - `chat:write` (post messages)
      - `users:read` (get user info for attribution)
+     - `users:read.email` (lookup users by email for channel invites)
      - `groups:write` (if using private channels)
 4. **Install the app** to your workspace:
    - Click **Install to Workspace** under OAuth & Permissions
@@ -106,7 +108,6 @@ SLACK_SIGNING_SECRET=your-signing-secret
 
 DATABASE_URL=file:./data/pr-channels.db
 SLACK_CHANNEL_PREFIX=pr-
-SLACK_CHANNEL_AUTO_ARCHIVE_HOURS=168
 ```
 
 ### 4. Local Development with Webhooks

@@ -20,7 +20,7 @@ const configSchema = z.object({
   }),
 
   channel: z.object({
-    prefix: z.string().default("pr_"),
+    prefix: z.string().default("_pr_"),
   }),
 });
 

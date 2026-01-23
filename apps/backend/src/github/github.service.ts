@@ -86,15 +86,33 @@ export class GitHubService implements OnModuleInit {
 
   async getUserEmail(
     username: string,
+    owner: string,
+    repo: string,
     installationId?: number
   ): Promise<string | null> {
     const octokit = await this.getOctokit(installationId);
 
-    const response = await octokit.rest.users.getByUsername({
-      username,
+    // Try public profile email first
+    const userResponse = await octokit.rest.users.getByUsername({ username });
+    if (userResponse.data.email) {
+      return userResponse.data.email;
+    }
+
+    // Fall back to email from recent commits in the repo
+    const commitsResponse = await octokit.rest.repos.listCommits({
+      owner,
+      repo,
+      author: username,
+      per_page: 1,
     });
 
-    return response.data.email || null;
+    const commit = commitsResponse.data[0];
+    const email = commit?.commit?.author?.email;
+    if (email && !email.endsWith("@users.noreply.github.com")) {
+      return email;
+    }
+
+    return null;
   }
 
   async getTeamMembers(

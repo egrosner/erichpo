@@ -1,0 +1,50 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model PrChannelMapping {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt  DateTime?
+  archivedAt DateTime?
+
+  // GitHub PR identifiers
+  githubRepoOwner      String
+  githubRepoName       String
+  githubPrNumber       Int
+  githubPrNodeId       String
+  githubInstallationId Int?
+
+  // Slack channel identifiers
+  slackChannelId   String @unique
+  slackChannelName String
+
+  // PR metadata
+  prTitle  String
+  prAuthor String
+  prUrl    String
+
+  // Status: open, merged, closed
+  status String @default("open")
+
+  // Webhook delivery tracking for idempotency
+  @@unique([githubRepoOwner, githubRepoName, githubPrNumber])
+  @@index([slackChannelId])
+  @@map("pr_channel_mappings")
+}
+
+model WebhookDelivery {
+  id          String   @id
+  source      String   // 'github' or 'slack'
+  processedAt DateTime @default(now())
+
+  @@map("webhook_deliveries")
+}

@@ -1,0 +1,15 @@
+{
+  "name": "erichpo",
+  "private": true,
+  "packageManager": "pnpm@10.28.1",
+  "engines": {
+    "node": ">=24.13.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter \"./apps/*\" run dev",
+    "test": "pnpm --filter \"./apps/*\" run test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

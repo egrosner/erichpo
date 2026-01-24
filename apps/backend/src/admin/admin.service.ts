@@ -10,35 +10,79 @@ export class AdminService {
   constructor(
     private readonly slackService: SlackService,
     private readonly githubService: GitHubService,
-    private readonly db: DatabaseService
+    private readonly db: DatabaseService,
   ) {}
 
-  async listSlackUsers() {
-    return this.slackService.listUsers();
+  async listWorkspaces() {
+    return this.db.slackWorkspace.findMany({
+      select: {
+        id: true,
+        teamId: true,
+        teamName: true,
+        botUserId: true,
+        installedBy: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async listOrgMappings() {
+    return this.db.orgMapping.findMany({
+      include: {
+        slackWorkspace: {
+          select: { teamId: true, teamName: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async listSlackUsers(teamId?: string) {
+    return this.slackService.listUsers(teamId);
   }
 
   async listGitHubCollaborators(owner: string, repo: string) {
-    const installationId =
-      await this.githubService.getInstallationForRepo(owner, repo);
+    const installationId = await this.githubService.getInstallationForRepo(
+      owner,
+      repo,
+    );
     return this.githubService.getCollaborators(owner, repo, installationId);
   }
 
-  async upsertUserMapping(githubUsername: string, slackUserId: string) {
-    const mapping = await this.db.gitHubSlackUserMapping.upsert({
-      where: { githubUsername },
-      update: { slackUserId },
-      create: { githubUsername, slackUserId },
+  async upsertUserMapping(
+    githubUsername: string,
+    slackUserId: string,
+    slackWorkspaceId?: number,
+  ) {
+    const existing = await this.db.gitHubSlackUserMapping.findFirst({
+      where: {
+        githubUsername,
+        slackWorkspaceId: slackWorkspaceId ?? null,
+      },
     });
 
+    const mapping = existing
+      ? await this.db.gitHubSlackUserMapping.update({
+          where: { id: existing.id },
+          data: { slackUserId },
+        })
+      : await this.db.gitHubSlackUserMapping.create({
+          data: { githubUsername, slackUserId, slackWorkspaceId },
+        });
+
     this.logger.log(
-      `Mapped GitHub user ${githubUsername} to Slack user ${slackUserId}`
+      `Mapped GitHub user ${githubUsername} to Slack user ${slackUserId}` +
+        (slackWorkspaceId ? ` (workspace ${slackWorkspaceId})` : ""),
     );
 
     return mapping;
   }
 
-  async listUserMappings() {
+  async listUserMappings(slackWorkspaceId?: number) {
     return this.db.gitHubSlackUserMapping.findMany({
+      where: slackWorkspaceId !== undefined ? { slackWorkspaceId } : undefined,
       orderBy: { githubUsername: "asc" },
     });
   }

@@ -1,11 +1,11 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import {
-  CanActivate,
-  ExecutionContext,
+  type CanActivate,
+  type ExecutionContext,
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request } from "express";
 
 @Injectable()

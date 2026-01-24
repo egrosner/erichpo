@@ -30,7 +30,7 @@ export class GitHubController {
   async handleWebhook(
     @Headers("x-github-event") event: string,
     @Headers("x-github-delivery") deliveryId: string,
-    @Body() payload: unknown
+    @Body() payload: unknown,
   ) {
     this.logger.log(`Received GitHub webhook: ${event} (${deliveryId})`);
 
@@ -122,7 +122,7 @@ export class GitHubController {
 
   private async handlePullRequestReviewEvent(
     payload: unknown,
-    deliveryId: string
+    deliveryId: string,
   ) {
     const parsed = pullRequestReviewEventSchema.safeParse(payload);
     if (!parsed.success) {
@@ -139,15 +139,12 @@ export class GitHubController {
     return { status: "processed", action: event.action };
   }
 
-  private async handleReviewCommentEvent(
-    payload: unknown,
-    deliveryId: string
-  ) {
+  private async handleReviewCommentEvent(payload: unknown, deliveryId: string) {
     const parsed = pullRequestReviewCommentEventSchema.safeParse(payload);
     if (!parsed.success) {
       this.logger.warn(
         "Invalid pull_request_review_comment payload:",
-        parsed.error
+        parsed.error,
       );
       return { status: "invalid_payload" };
     }

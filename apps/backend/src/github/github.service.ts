@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { App, Octokit } from "octokit";
 
@@ -21,7 +21,7 @@ export class GitHubService implements OnModuleInit {
       this.logger.log("GitHub App initialized");
     } else {
       this.logger.warn(
-        "GitHub App credentials not configured - API calls will fail"
+        "GitHub App credentials not configured - API calls will fail",
       );
     }
   }
@@ -46,7 +46,7 @@ export class GitHubService implements OnModuleInit {
     repo: string,
     prNumber: number,
     body: string,
-    installationId?: number
+    installationId?: number,
   ): Promise<{ id: number; html_url: string }> {
     const octokit = await this.getOctokit(installationId);
 
@@ -58,7 +58,7 @@ export class GitHubService implements OnModuleInit {
     });
 
     this.logger.log(
-      `Created comment on ${owner}/${repo}#${prNumber}: ${response.data.id}`
+      `Created comment on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
     );
 
     return {
@@ -71,7 +71,7 @@ export class GitHubService implements OnModuleInit {
     owner: string,
     repo: string,
     prNumber: number,
-    installationId?: number
+    installationId?: number,
   ) {
     const octokit = await this.getOctokit(installationId);
 
@@ -88,7 +88,7 @@ export class GitHubService implements OnModuleInit {
     username: string,
     owner: string,
     repo: string,
-    installationId?: number
+    installationId?: number,
   ): Promise<string | null> {
     const octokit = await this.getOctokit(installationId);
 
@@ -115,23 +115,22 @@ export class GitHubService implements OnModuleInit {
     return null;
   }
 
-  async getInstallationForRepo(
-    owner: string,
-    repo: string
-  ): Promise<number> {
+  async getInstallationForRepo(owner: string, repo: string): Promise<number> {
     if (!this.app) {
       throw new Error("GitHub App not initialized");
     }
 
-    const response =
-      await this.app.octokit.rest.apps.getRepoInstallation({ owner, repo });
+    const response = await this.app.octokit.rest.apps.getRepoInstallation({
+      owner,
+      repo,
+    });
     return response.data.id;
   }
 
   async getCollaborators(
     owner: string,
     repo: string,
-    installationId?: number
+    installationId?: number,
   ): Promise<Array<{ login: string; role: string }>> {
     const octokit = await this.getOctokit(installationId);
 
@@ -150,7 +149,7 @@ export class GitHubService implements OnModuleInit {
   async getTeamMembers(
     org: string,
     teamSlug: string,
-    installationId?: number
+    installationId?: number,
   ): Promise<string[]> {
     const octokit = await this.getOctokit(installationId);
 

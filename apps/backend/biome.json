@@ -1,12 +1,20 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
   "organizeImports": {
     "enabled": true
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "recommended": true,
+      "style": {
+        "useImportType": "off"
+      }
     }
   },
   "formatter": {

@@ -1,0 +1,362 @@
+{
+  "info": {
+    "name": "erichpo API",
+    "description": "Bidirectional GitHub-Slack PR integration API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://erichpo.erichgrosner.com",
+      "type": "string"
+    },
+    {
+      "key": "githubWebhookSecret",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "slackSigningSecret",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "Returns a simple health check response."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "GitHub Webhook - PR Opened",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "github"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-github-event", "value": "pull_request" },
+              { "key": "x-github-delivery", "value": "test-delivery-001" },
+              { "key": "x-hub-signature-256", "value": "sha256=<computed>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"opened\",\n  \"number\": 1,\n  \"pull_request\": {\n    \"number\": 1,\n    \"title\": \"Test PR\",\n    \"body\": \"Test PR body\",\n    \"state\": \"open\",\n    \"html_url\": \"https://github.com/org/repo/pull/1\",\n    \"user\": { \"login\": \"testuser\", \"id\": 1 },\n    \"head\": { \"ref\": \"feature-branch\", \"sha\": \"abc1234\" },\n    \"base\": { \"ref\": \"main\", \"sha\": \"def5678\" },\n    \"additions\": 10,\n    \"deletions\": 2,\n    \"changed_files\": 3,\n    \"node_id\": \"PR_node123\"\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"testuser\", \"id\": 1 },\n  \"installation\": { \"id\": 12345 }\n}"
+            },
+            "description": "Simulates a GitHub pull_request opened webhook event. Requires valid HMAC signature."
+          }
+        },
+        {
+          "name": "GitHub Webhook - PR Closed",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "github"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-github-event", "value": "pull_request" },
+              { "key": "x-github-delivery", "value": "test-delivery-002" },
+              { "key": "x-hub-signature-256", "value": "sha256=<computed>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"closed\",\n  \"number\": 1,\n  \"pull_request\": {\n    \"number\": 1,\n    \"title\": \"Test PR\",\n    \"body\": null,\n    \"state\": \"closed\",\n    \"merged\": true,\n    \"html_url\": \"https://github.com/org/repo/pull/1\",\n    \"user\": { \"login\": \"testuser\", \"id\": 1 },\n    \"head\": { \"ref\": \"feature-branch\", \"sha\": \"abc1234\" },\n    \"base\": { \"ref\": \"main\", \"sha\": \"def5678\" },\n    \"node_id\": \"PR_node123\"\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"testuser\", \"id\": 1 },\n  \"installation\": { \"id\": 12345 }\n}"
+            },
+            "description": "Simulates a GitHub pull_request closed/merged webhook event."
+          }
+        },
+        {
+          "name": "GitHub Webhook - Issue Comment",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "github"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-github-event", "value": "issue_comment" },
+              { "key": "x-github-delivery", "value": "test-delivery-003" },
+              { "key": "x-hub-signature-256", "value": "sha256=<computed>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"created\",\n  \"issue\": {\n    \"number\": 1,\n    \"title\": \"Test PR\",\n    \"pull_request\": { \"url\": \"https://api.github.com/repos/org/repo/pulls/1\" }\n  },\n  \"comment\": {\n    \"id\": 1,\n    \"body\": \"This is a test comment\",\n    \"user\": { \"login\": \"commenter\", \"id\": 2 },\n    \"html_url\": \"https://github.com/org/repo/pull/1#issuecomment-1\",\n    \"created_at\": \"2024-01-01T00:00:00Z\"\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"commenter\", \"id\": 2 },\n  \"installation\": { \"id\": 12345 }\n}"
+            },
+            "description": "Simulates a GitHub issue_comment created webhook event on a PR."
+          }
+        },
+        {
+          "name": "GitHub Webhook - PR Review",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "github"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-github-event", "value": "pull_request_review" },
+              { "key": "x-github-delivery", "value": "test-delivery-004" },
+              { "key": "x-hub-signature-256", "value": "sha256=<computed>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"submitted\",\n  \"review\": {\n    \"id\": 1,\n    \"body\": \"Looks good!\",\n    \"state\": \"approved\",\n    \"user\": { \"login\": \"reviewer\", \"id\": 3 },\n    \"html_url\": \"https://github.com/org/repo/pull/1#pullrequestreview-1\"\n  },\n  \"pull_request\": {\n    \"number\": 1,\n    \"title\": \"Test PR\",\n    \"body\": null,\n    \"state\": \"open\",\n    \"html_url\": \"https://github.com/org/repo/pull/1\",\n    \"user\": { \"login\": \"testuser\", \"id\": 1 },\n    \"head\": { \"ref\": \"feature-branch\", \"sha\": \"abc1234\" },\n    \"base\": { \"ref\": \"main\", \"sha\": \"def5678\" },\n    \"node_id\": \"PR_node123\"\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"reviewer\", \"id\": 3 },\n  \"installation\": { \"id\": 12345 }\n}"
+            },
+            "description": "Simulates a GitHub pull_request_review submitted webhook event."
+          }
+        },
+        {
+          "name": "GitHub Webhook - Check Run Completed",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "github"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-github-event", "value": "check_run" },
+              { "key": "x-github-delivery", "value": "test-delivery-005" },
+              { "key": "x-hub-signature-256", "value": "sha256=<computed>" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"completed\",\n  \"check_run\": {\n    \"id\": 1,\n    \"name\": \"CI / build\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"html_url\": \"https://github.com/org/repo/runs/1\",\n    \"pull_requests\": [{ \"number\": 1 }]\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"github-actions[bot]\", \"id\": 100 },\n  \"installation\": { \"id\": 12345 }\n}"
+            },
+            "description": "Simulates a GitHub check_run completed webhook event."
+          }
+        },
+        {
+          "name": "Slack Events - Message",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/slack/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "slack", "events"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-slack-signature", "value": "v0=<computed>" },
+              { "key": "x-slack-request-timestamp", "value": "1234567890" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"event_callback\",\n  \"token\": \"test-token\",\n  \"team_id\": \"T12345\",\n  \"api_app_id\": \"A12345\",\n  \"event\": {\n    \"type\": \"message\",\n    \"channel\": \"C12345\",\n    \"user\": \"U12345\",\n    \"text\": \"Hello from Slack!\",\n    \"ts\": \"1234567890.123456\"\n  },\n  \"event_id\": \"Ev12345\",\n  \"event_time\": 1234567890\n}"
+            },
+            "description": "Simulates a Slack message event. Requires valid Slack signature."
+          }
+        },
+        {
+          "name": "Slack Events - URL Verification",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/webhooks/slack/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "webhooks", "slack", "events"]
+            },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-slack-signature", "value": "v0=<computed>" },
+              { "key": "x-slack-request-timestamp", "value": "1234567890" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"url_verification\",\n  \"challenge\": \"test-challenge-string\",\n  \"token\": \"test-token\"\n}"
+            },
+            "description": "Slack URL verification challenge. Returns the challenge string."
+          }
+        }
+      ]
+    },
+    {
+      "name": "OAuth",
+      "item": [
+        {
+          "name": "Slack OAuth Install",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/oauth/slack/install?installation_id=12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "oauth", "slack", "install"],
+              "query": [
+                {
+                  "key": "installation_id",
+                  "value": "12345",
+                  "description": "GitHub App installation ID to link"
+                }
+              ]
+            },
+            "description": "Redirects to Slack OAuth consent screen. The installation_id is encoded in the OAuth state parameter to link the workspace to the GitHub installation after authorization."
+          }
+        },
+        {
+          "name": "Slack OAuth Callback",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/oauth/slack/callback?code=test-code&state=eyJpbnN0YWxsYXRpb25faWQiOjEyMzQ1fQ",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "oauth", "slack", "callback"],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "test-code",
+                  "description": "Authorization code from Slack"
+                },
+                {
+                  "key": "state",
+                  "value": "eyJpbnN0YWxsYXRpb25faWQiOjEyMzQ1fQ",
+                  "description": "Base64url-encoded state with installation_id"
+                }
+              ]
+            },
+            "description": "OAuth callback endpoint. Exchanges the code for a bot token, stores the SlackWorkspace, and creates the OrgMapping. Called by Slack after user authorizes the app."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Workspaces",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/workspaces",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "workspaces"]
+            },
+            "description": "Lists all connected Slack workspaces (bot tokens are excluded from response)."
+          }
+        },
+        {
+          "name": "List Org Mappings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/org-mappings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "org-mappings"]
+            },
+            "description": "Lists all GitHub installation → Slack workspace mappings."
+          }
+        },
+        {
+          "name": "List Slack Users",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/slack-users?team_id=T12345",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "slack-users"],
+              "query": [
+                {
+                  "key": "team_id",
+                  "value": "T12345",
+                  "description": "Optional: Slack team ID to scope the user list to a specific workspace"
+                }
+              ]
+            },
+            "description": "Lists all non-bot Slack users. Optionally scoped to a specific workspace by team_id."
+          }
+        },
+        {
+          "name": "List GitHub Collaborators",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/github-collaborators/:owner/:repo",
+              "host": ["{{baseUrl}}"],
+              "path": [
+                "api",
+                "admin",
+                "github-collaborators",
+                ":owner",
+                ":repo"
+              ],
+              "variable": [
+                {
+                  "key": "owner",
+                  "value": "org",
+                  "description": "GitHub org or user"
+                },
+                {
+                  "key": "repo",
+                  "value": "repo",
+                  "description": "Repository name"
+                }
+              ]
+            },
+            "description": "Lists collaborators for a GitHub repository."
+          }
+        },
+        {
+          "name": "Create/Update User Mapping",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/user-mappings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "user-mappings"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"githubUsername\": \"octocat\",\n  \"slackUserId\": \"U12345\",\n  \"slackWorkspaceId\": 1\n}"
+            },
+            "description": "Creates or updates a GitHub-to-Slack user mapping. The slackWorkspaceId is optional — omit it for a global (non-workspace-scoped) mapping."
+          }
+        },
+        {
+          "name": "List User Mappings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/user-mappings?workspace_id=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "user-mappings"],
+              "query": [
+                {
+                  "key": "workspace_id",
+                  "value": "1",
+                  "description": "Optional: filter by workspace ID"
+                }
+              ]
+            },
+            "description": "Lists all GitHub-to-Slack user mappings. Optionally filtered by workspace_id."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # erichpo
 
-A bidirectional GitHub-Slack integration that creates temporary Slack channels for pull requests, syncing comments and activity between both platforms.
+A bidirectional GitHub-Slack integration that creates temporary Slack channels for pull requests, syncing comments and activity between both platforms. Supports multi-org tenancy — one GitHub App across multiple orgs, one Slack App distributed to multiple workspaces.
 
 ## Features
 
@@ -8,6 +8,8 @@ A bidirectional GitHub-Slack integration that creates temporary Slack channels f
 - Syncs PR comments, reviews, and CI status to the Slack channel
 - Posts Slack channel messages as comments on the PR
 - Archives channels after PRs are closed/merged
+- Multi-workspace: install the Slack App into multiple workspaces via OAuth, each linked to a GitHub App installation
+- Per-workspace bot tokens stored in DB (no shared `SLACK_BOT_TOKEN` required)
 
 ## Prerequisites
 
@@ -29,7 +31,7 @@ pnpm dev
 2. Fill in the details:
    - **App name**: Choose a name (e.g. `pr-slack-bridge`)
    - **Homepage URL**: Your app URL or repository URL
-   - **Webhook URL**: `https://your-domain/api/webhooks/github`
+   - **Webhook URL**: `https://erichpo.erichgrosner.com/api/webhooks/github`
    - **Webhook secret**: Generate a secret (e.g. `openssl rand -hex 32`) and save it for `.env`
 3. Set **Permissions**:
    - **Repository permissions**:
@@ -68,21 +70,25 @@ pnpm dev
      - `chat:write` (post messages)
      - `users:read` (get user info for attribution)
      - `users:read.email` (lookup users by email for channel invites)
-     - `groups:write` (if using private channels)
-4. **Install the app** to your workspace:
-   - Click **Install to Workspace** under OAuth & Permissions
-   - Authorize the app
-   - Copy the **Bot User OAuth Token** (`xoxb-...`) for `SLACK_BOT_TOKEN` in `.env`
-5. Set up **Event Subscriptions**:
+   - Set **Redirect URLs** to: `https://erichpo.erichgrosner.com/api/oauth/slack/callback`
+4. Set up **Event Subscriptions**:
    - Enable Events at **Event Subscriptions**
-   - Set **Request URL** to: `https://your-domain/api/webhooks/slack/events`
+   - Set **Request URL** to: `https://erichpo.erichgrosner.com/api/webhooks/slack/events`
    - Slack will send a challenge request to verify - your server must be running
    - Under **Subscribe to bot events**, add:
      - `message.channels` (messages in public channels)
    - Save changes
-6. Get the **Signing Secret**:
-   - Go to **Basic Information**
-   - Under **App Credentials**, copy the **Signing Secret** for `SLACK_SIGNING_SECRET` in `.env`
+5. Get the **App Credentials** from **Basic Information**:
+   - Copy the **Client ID** for `SLACK_CLIENT_ID` in `.env`
+   - Copy the **Client Secret** for `SLACK_CLIENT_SECRET` in `.env`
+   - Copy the **Signing Secret** for `SLACK_SIGNING_SECRET` in `.env`
+6. **Install to workspaces** via the OAuth flow:
+   - Visit `https://erichpo.erichgrosner.com/api/oauth/slack/install?installation_id=<github_installation_id>`
+   - This redirects to Slack's OAuth consent screen
+   - After authorization, the bot token is stored in the DB and the workspace is linked to the GitHub installation
+   - Repeat for each workspace you want to connect
+
+> **Fallback mode:** You can still set `SLACK_BOT_TOKEN` in `.env` for single-workspace setups or as a fallback when no workspace is found in the DB.
 
 ### 3. Configure Environment
 
@@ -94,7 +100,7 @@ cp .env.example .env
 Fill in your `.env`:
 
 ```bash
-PORT=3000
+PORT=4847
 NODE_ENV=development
 
 # From GitHub App setup (steps 6-7)
@@ -102,9 +108,14 @@ GITHUB_WEBHOOK_SECRET=your-generated-webhook-secret
 GITHUB_APP_ID=123456
 GITHUB_PRIVATE_KEY_BASE64=your-base64-encoded-private-key
 
-# From Slack App setup (steps 4, 6)
-SLACK_BOT_TOKEN=xoxb-your-bot-token
+# From Slack App setup (step 5)
 SLACK_SIGNING_SECRET=your-signing-secret
+SLACK_CLIENT_ID=your-slack-client-id
+SLACK_CLIENT_SECRET=your-slack-client-secret
+SLACK_OAUTH_REDIRECT_URL=https://erichpo.erichgrosner.com/api/oauth/slack/callback
+
+# Optional: fallback bot token for single-workspace mode
+SLACK_BOT_TOKEN=xoxb-your-bot-token
 
 DATABASE_URL=file:./data/pr-channels.db
 SLACK_CHANNEL_PREFIX=_pr_
@@ -116,11 +127,13 @@ Since GitHub and Slack need to reach your server, use a tunnel for local develop
 
 ```bash
 # Using ngrok
-ngrok http 3000
+ngrok http 4847
 
 # Update your GitHub App webhook URL and Slack Events URL
 # with the ngrok URL (e.g. https://abc123.ngrok.io)
 ```
+
+In production, the app is hosted at `https://erichpo.erichgrosner.com`.
 
 ## Project Structure
 
@@ -132,9 +145,11 @@ erichpo/
 │       │   ├── config/    # Zod-validated configuration
 │       │   ├── database/  # Prisma + SQLite
 │       │   ├── common/    # Guards (signature verification)
-│       │   ├── github/    # Webhook receiver & GitHub API
-│       │   ├── slack/     # Slack API & Events receiver
-│       │   └── integration/ # Orchestration service
+│       │   ├── github/    # GitHub API service
+│       │   ├── slack/     # Slack API service & Events controller
+│       │   ├── integration/ # Webhook orchestration (GitHub↔Slack)
+│       │   ├── oauth/     # Slack OAuth install flow
+│       │   └── admin/     # Workspace & user mapping management
 │       └── prisma/        # Schema & migrations
 └── packages/              # Shared packages
 ```

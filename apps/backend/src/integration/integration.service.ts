@@ -9,7 +9,7 @@ import type {
   PullRequestReviewCommentEvent,
   PullRequestReviewEvent,
 } from "../github/schemas/webhook.schema";
-import { SlackService, type SlackBlock } from "../slack/slack.service";
+import { type SlackBlock, SlackService } from "../slack/slack.service";
 
 @Injectable()
 export class IntegrationService {
@@ -19,16 +19,35 @@ export class IntegrationService {
     private readonly slackService: SlackService,
     private readonly githubService: GitHubService,
     private readonly db: DatabaseService,
-    private readonly configService: ConfigService
+    private readonly configService: ConfigService,
   ) {}
+
+  // ========== Workspace Resolution ==========
+
+  private async resolveWorkspaceForInstallation(
+    installationId?: number,
+  ): Promise<{ teamId?: string; workspaceId?: number }> {
+    if (!installationId) return {};
+
+    const orgMapping = await this.db.orgMapping.findUnique({
+      where: { githubInstallationId: installationId },
+      include: { slackWorkspace: true },
+    });
+
+    if (!orgMapping) return {};
+
+    return {
+      teamId: orgMapping.slackWorkspace.teamId,
+      workspaceId: orgMapping.slackWorkspaceId,
+    };
+  }
 
   // ========== GitHub -> Slack ==========
 
   async handlePrOpened(
     event: PullRequestEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
-    // Check for duplicate delivery
     if (await this.isDuplicateDelivery(deliveryId, "github")) {
       this.logger.debug(`Duplicate delivery ignored: ${deliveryId}`);
       return;
@@ -36,18 +55,19 @@ export class IntegrationService {
 
     const { pull_request: pr, repository, installation } = event;
 
-    // Generate channel name
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
+
     const channelName = this.generateChannelName(
       repository.name,
       pr.number,
-      pr.head.ref
+      pr.head.ref,
     );
 
-    // Create Slack channel
     const { channelId, channelName: actualName } =
-      await this.slackService.createChannel(channelName);
+      await this.slackService.createChannel(channelName, teamId);
 
-    // Store mapping
     await this.db.prChannelMapping.create({
       data: {
         githubRepoOwner: repository.owner.login,
@@ -57,67 +77,75 @@ export class IntegrationService {
         githubInstallationId: installation?.id,
         slackChannelId: channelId,
         slackChannelName: actualName,
+        slackWorkspaceId: workspaceId,
         prTitle: pr.title,
         prAuthor: pr.user.login,
         prUrl: pr.html_url,
       },
     });
 
-    // Set channel topic
     await this.slackService.setChannelTopic(
       channelId,
-      `PR #${pr.number}: ${pr.title} | ${pr.html_url}`
+      `PR #${pr.number}: ${pr.title} | ${pr.html_url}`,
+      teamId,
     );
 
-    // Post welcome message
     await this.slackService.postMessage(
       channelId,
       `PR #${pr.number} opened by ${pr.user.login}`,
-      this.buildPrOpenedBlocks(pr, repository.full_name)
+      this.buildPrOpenedBlocks(pr, repository.full_name),
+      teamId,
     );
 
-    // Invite PR author to the channel
     try {
       const authorSlackId = await this.resolveGitHubUserToSlack(
         pr.user.login,
         repository.owner.login,
         repository.name,
-        installation?.id
+        installation?.id,
+        teamId,
+        workspaceId,
       );
       if (authorSlackId) {
-        await this.slackService.inviteToChannel(channelId, [authorSlackId]);
+        await this.slackService.inviteToChannel(
+          channelId,
+          [authorSlackId],
+          teamId,
+        );
       }
     } catch (error) {
       this.logger.warn(
-        `Could not invite PR author ${pr.user.login} to channel: ${(error as Error).message}`
+        `Could not invite PR author ${pr.user.login} to channel: ${(error as Error).message}`,
       );
     }
 
-    // Record delivery
     await this.recordDelivery(deliveryId, "github");
 
     this.logger.log(
-      `Created channel ${actualName} for PR #${pr.number} in ${repository.full_name}`
+      `Created channel ${actualName} for PR #${pr.number} in ${repository.full_name}`,
     );
   }
 
   async handlePrClosed(
     event: PullRequestEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { pull_request: pr, repository } = event;
+    const { pull_request: pr, repository, installation } = event;
     const isMerged = pr.merged ?? false;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
-    // Update status
     await this.db.prChannelMapping.update({
       where: { id: mapping.id },
       data: {
@@ -126,23 +154,22 @@ export class IntegrationService {
       },
     });
 
-    // Post closure message
     await this.slackService.postMessage(
       mapping.slackChannelId,
       `PR #${pr.number} ${isMerged ? "merged" : "closed"}`,
-      this.buildPrClosedBlocks(pr, isMerged)
+      this.buildPrClosedBlocks(pr, isMerged),
+      teamId,
     );
 
-    // Archive the channel
     try {
-      await this.slackService.archiveChannel(mapping.slackChannelId);
+      await this.slackService.archiveChannel(mapping.slackChannelId, teamId);
       await this.db.prChannelMapping.update({
         where: { id: mapping.id },
         data: { archivedAt: new Date() },
       });
     } catch (error) {
       this.logger.warn(
-        `Could not archive channel ${mapping.slackChannelId}: ${(error as Error).message}`
+        `Could not archive channel ${mapping.slackChannelId}: ${(error as Error).message}`,
       );
     }
 
@@ -151,20 +178,23 @@ export class IntegrationService {
 
   async handlePrReopened(
     event: PullRequestEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { pull_request: pr, repository } = event;
+    const { pull_request: pr, repository, installation } = event;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
-    // Update status
     await this.db.prChannelMapping.update({
       where: { id: mapping.id },
       data: {
@@ -173,17 +203,19 @@ export class IntegrationService {
       },
     });
 
-    // Try to unarchive if archived
     if (mapping.archivedAt) {
       try {
-        await this.slackService.unarchiveChannel(mapping.slackChannelId);
+        await this.slackService.unarchiveChannel(
+          mapping.slackChannelId,
+          teamId,
+        );
         await this.db.prChannelMapping.update({
           where: { id: mapping.id },
           data: { archivedAt: null },
         });
       } catch {
         this.logger.warn(
-          `Could not unarchive channel ${mapping.slackChannelId}`
+          `Could not unarchive channel ${mapping.slackChannelId}`,
         );
       }
     }
@@ -199,7 +231,8 @@ export class IntegrationService {
             text: `:arrows_counterclockwise: *PR Reopened* by ${pr.user.login}`,
           },
         },
-      ]
+      ],
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -207,16 +240,20 @@ export class IntegrationService {
 
   async handlePrSynchronize(
     event: PullRequestEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { pull_request: pr, repository, sender } = event;
+    const { pull_request: pr, repository, sender, installation } = event;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
@@ -231,7 +268,8 @@ export class IntegrationService {
             text: `:arrow_up: *New commits pushed* by ${sender.login}\nHead: \`${pr.head.sha.substring(0, 7)}\``,
           },
         },
-      ]
+      ],
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -239,16 +277,20 @@ export class IntegrationService {
 
   async handleReviewRequested(
     event: PullRequestEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
     const { pull_request: pr, repository, installation } = event;
 
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
+
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
@@ -260,7 +302,9 @@ export class IntegrationService {
           event.requested_reviewer.login,
           repository.owner.login,
           repository.name,
-          installation?.id
+          installation?.id,
+          teamId,
+          workspaceId,
         );
         if (slackId) slackUserIds.push(slackId);
       }
@@ -269,7 +313,7 @@ export class IntegrationService {
         const members = await this.githubService.getTeamMembers(
           repository.owner.login,
           event.requested_team.slug,
-          installation?.id
+          installation?.id,
         );
         for (const member of members) {
           try {
@@ -277,12 +321,14 @@ export class IntegrationService {
               member,
               repository.owner.login,
               repository.name,
-              installation?.id
+              installation?.id,
+              teamId,
+              workspaceId,
             );
             if (slackId) slackUserIds.push(slackId);
           } catch (error) {
             this.logger.warn(
-              `Could not resolve team member ${member} to Slack: ${(error as Error).message}`
+              `Could not resolve team member ${member} to Slack: ${(error as Error).message}`,
             );
           }
         }
@@ -291,16 +337,16 @@ export class IntegrationService {
       if (slackUserIds.length > 0) {
         await this.slackService.inviteToChannel(
           mapping.slackChannelId,
-          slackUserIds
+          slackUserIds,
+          teamId,
         );
       }
     } catch (error) {
       this.logger.warn(
-        `Error inviting reviewers to channel: ${(error as Error).message}`
+        `Error inviting reviewers to channel: ${(error as Error).message}`,
       );
     }
 
-    // Post notification about review request
     const reviewerName = event.requested_reviewer
       ? event.requested_reviewer.login
       : event.requested_team
@@ -318,7 +364,8 @@ export class IntegrationService {
             text: `:eyes: *Review requested* from *${reviewerName}*`,
           },
         },
-      ]
+      ],
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -326,23 +373,28 @@ export class IntegrationService {
 
   async handlePrComment(
     event: IssueCommentEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { comment, issue, repository, sender } = event;
+    const { comment, issue, repository, sender, installation } = event;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      issue.number
+      issue.number,
     );
     if (!mapping) return;
 
     await this.slackService.postMessage(
       mapping.slackChannelId,
       `Comment from ${sender.login}`,
-      this.buildCommentBlocks(comment.body, sender.login, comment.html_url)
+      this.buildCommentBlocks(comment.body, sender.login, comment.html_url),
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -350,16 +402,20 @@ export class IntegrationService {
 
   async handlePrReview(
     event: PullRequestReviewEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { review, pull_request: pr, repository } = event;
+    const { review, pull_request: pr, repository, installation } = event;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
@@ -396,7 +452,8 @@ export class IntegrationService {
             action_id: "view_review",
           },
         },
-      ]
+      ],
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -404,16 +461,20 @@ export class IntegrationService {
 
   async handlePrReviewComment(
     event: PullRequestReviewCommentEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { comment, pull_request: pr, repository } = event;
+    const { comment, pull_request: pr, repository, installation } = event;
+
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
 
     const mapping = await this.findMapping(
       repository.owner.login,
       repository.name,
-      pr.number
+      pr.number,
     );
     if (!mapping) return;
 
@@ -434,7 +495,8 @@ export class IntegrationService {
             action_id: "view_comment",
           },
         },
-      ]
+      ],
+      teamId,
     );
 
     await this.recordDelivery(deliveryId, "github");
@@ -442,18 +504,21 @@ export class IntegrationService {
 
   async handleCheckRunCompleted(
     event: CheckRunEvent,
-    deliveryId: string
+    deliveryId: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
-    const { check_run, repository } = event;
+    const { check_run, repository, installation } = event;
 
-    // Post to each PR that this check is associated with
+    const { teamId } = await this.resolveWorkspaceForInstallation(
+      installation?.id,
+    );
+
     for (const pr of check_run.pull_requests) {
       const mapping = await this.findMapping(
         repository.owner.login,
         repository.name,
-        pr.number
+        pr.number,
       );
       if (!mapping) continue;
 
@@ -481,7 +546,8 @@ export class IntegrationService {
               action_id: "view_check",
             },
           },
-        ]
+        ],
+        teamId,
       );
     }
 
@@ -495,7 +561,8 @@ export class IntegrationService {
     userId: string,
     text: string,
     ts: string,
-    eventId: string
+    eventId: string,
+    teamId?: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(eventId, "slack")) return;
 
@@ -504,29 +571,25 @@ export class IntegrationService {
     });
 
     if (!mapping) {
-      // Not a PR channel, ignore
       return;
     }
 
-    // Get Slack user info for attribution
-    const userInfo = await this.slackService.getUserInfo(userId);
+    const userInfo = await this.slackService.getUserInfo(userId, teamId);
 
-    // Format comment with Slack attribution
     const commentBody = `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
 
-    // Post to GitHub PR
     await this.githubService.createPrComment(
       mapping.githubRepoOwner,
       mapping.githubRepoName,
       mapping.githubPrNumber,
       commentBody,
-      mapping.githubInstallationId ?? undefined
+      mapping.githubInstallationId ?? undefined,
     );
 
     await this.recordDelivery(eventId, "slack");
 
     this.logger.log(
-      `Synced Slack message to GitHub PR #${mapping.githubPrNumber}`
+      `Synced Slack message to GitHub PR #${mapping.githubPrNumber}`,
     );
   }
 
@@ -535,7 +598,7 @@ export class IntegrationService {
   private generateChannelName(
     repoName: string,
     prNumber: number,
-    branchName: string
+    branchName: string,
   ): string {
     const prefix = this.configService.get<string>("channel.prefix") || "pr_";
     const repo = repoName.replace(/[^a-z0-9]/gi, "_").toLowerCase();
@@ -550,11 +613,16 @@ export class IntegrationService {
     username: string,
     owner: string,
     repo: string,
-    installationId?: number
+    installationId?: number,
+    teamId?: string,
+    workspaceId?: number,
   ): Promise<string | null> {
-    // Check DB cache
-    const cached = await this.db.gitHubSlackUserMapping.findUnique({
-      where: { githubUsername: username },
+    // Check DB cache (scoped to workspace if available)
+    const cached = await this.db.gitHubSlackUserMapping.findFirst({
+      where: {
+        githubUsername: username,
+        slackWorkspaceId: workspaceId ?? null,
+      },
     });
     if (cached) return cached.slackUserId;
 
@@ -563,7 +631,7 @@ export class IntegrationService {
       username,
       owner,
       repo,
-      installationId
+      installationId,
     );
     if (!email) {
       this.logger.warn(`No email found for GitHub user ${username}`);
@@ -571,17 +639,24 @@ export class IntegrationService {
     }
 
     // Lookup Slack user by email
-    const slackUserId = await this.slackService.lookupUserByEmail(email);
+    const slackUserId = await this.slackService.lookupUserByEmail(
+      email,
+      teamId,
+    );
     if (!slackUserId) {
       this.logger.warn(
-        `No Slack user found for email ${email} (GitHub: ${username})`
+        `No Slack user found for email ${email} (GitHub: ${username})`,
       );
       return null;
     }
 
     // Cache the mapping
     await this.db.gitHubSlackUserMapping.create({
-      data: { githubUsername: username, slackUserId },
+      data: {
+        githubUsername: username,
+        slackUserId,
+        slackWorkspaceId: workspaceId,
+      },
     });
 
     return slackUserId;
@@ -601,7 +676,7 @@ export class IntegrationService {
 
   private async isDuplicateDelivery(
     id: string,
-    source: string
+    source: string,
   ): Promise<boolean> {
     const existing = await this.db.webhookDelivery.findUnique({
       where: { id },
@@ -615,12 +690,11 @@ export class IntegrationService {
     });
   }
 
-
   // ========== Slack Block Builders ==========
 
   private buildPrOpenedBlocks(
     pr: PullRequestEvent["pull_request"],
-    repoFullName: string
+    repoFullName: string,
   ): SlackBlock[] {
     return [
       {
@@ -657,9 +731,7 @@ export class IntegrationService {
         type: "section",
         text: {
           type: "mrkdwn",
-          text:
-            pr.body?.substring(0, 500) ||
-            "_No description provided_",
+          text: pr.body?.substring(0, 500) || "_No description provided_",
         },
       },
       {
@@ -679,7 +751,7 @@ export class IntegrationService {
 
   private buildPrClosedBlocks(
     pr: PullRequestEvent["pull_request"],
-    isMerged: boolean
+    isMerged: boolean,
   ): SlackBlock[] {
     return [
       {
@@ -704,7 +776,7 @@ export class IntegrationService {
   private buildCommentBlocks(
     body: string,
     author: string,
-    url: string
+    url: string,
   ): SlackBlock[] {
     return [
       {

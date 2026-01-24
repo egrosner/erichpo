@@ -9,6 +9,34 @@ datasource db {
   provider = "sqlite"
 }
 
+model SlackWorkspace {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  teamId      String   @unique
+  teamName    String
+  botToken    String
+  botUserId   String?
+  installedBy String?
+
+  orgMappings  OrgMapping[]
+  prChannels   PrChannelMapping[]
+  userMappings GitHubSlackUserMapping[]
+
+  @@map("slack_workspaces")
+}
+
+model OrgMapping {
+  id                   Int      @id @default(autoincrement())
+  createdAt            DateTime @default(now())
+  githubInstallationId Int      @unique
+  githubOrgLogin       String?
+  slackWorkspaceId     Int
+  slackWorkspace       SlackWorkspace @relation(fields: [slackWorkspaceId], references: [id])
+
+  @@map("org_mappings")
+}
+
 model PrChannelMapping {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
@@ -27,6 +55,10 @@ model PrChannelMapping {
   slackChannelId   String @unique
   slackChannelName String
 
+  // Slack workspace (nullable for backwards compatibility)
+  slackWorkspaceId Int?
+  slackWorkspace   SlackWorkspace? @relation(fields: [slackWorkspaceId], references: [id])
+
   // PR metadata
   prTitle  String
   prAuthor String
@@ -35,7 +67,6 @@ model PrChannelMapping {
   // Status: open, merged, closed
   status String @default("open")
 
-  // Webhook delivery tracking for idempotency
   @@unique([githubRepoOwner, githubRepoName, githubPrNumber])
   @@index([slackChannelId])
   @@map("pr_channel_mappings")
@@ -53,8 +84,13 @@ model GitHubSlackUserMapping {
   id              Int      @id @default(autoincrement())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  githubUsername  String   @unique
+  githubUsername  String
   slackUserId     String
 
+  // Slack workspace (nullable for backwards compatibility)
+  slackWorkspaceId Int?
+  slackWorkspace   SlackWorkspace? @relation(fields: [slackWorkspaceId], references: [id])
+
+  @@unique([githubUsername, slackWorkspaceId])
   @@map("github_slack_user_mappings")
 }

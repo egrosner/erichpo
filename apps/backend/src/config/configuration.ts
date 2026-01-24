@@ -13,6 +13,9 @@ const configSchema = z.object({
   slack: z.object({
     botToken: z.string().optional(),
     signingSecret: z.string().optional(),
+    clientId: z.string().optional(),
+    clientSecret: z.string().optional(),
+    oauthRedirectUrl: z.string().optional(),
   }),
 
   database: z.object({
@@ -35,13 +38,19 @@ export function configuration(): Config {
       webhookSecret: process.env.GITHUB_WEBHOOK_SECRET,
       appId: process.env.GITHUB_APP_ID,
       privateKey: process.env.GITHUB_PRIVATE_KEY_BASE64
-        ? Buffer.from(process.env.GITHUB_PRIVATE_KEY_BASE64, "base64").toString()
+        ? Buffer.from(
+            process.env.GITHUB_PRIVATE_KEY_BASE64,
+            "base64",
+          ).toString()
         : process.env.GITHUB_PRIVATE_KEY,
     },
 
     slack: {
       botToken: process.env.SLACK_BOT_TOKEN,
       signingSecret: process.env.SLACK_SIGNING_SECRET,
+      clientId: process.env.SLACK_CLIENT_ID,
+      clientSecret: process.env.SLACK_CLIENT_SECRET,
+      oauthRedirectUrl: process.env.SLACK_OAUTH_REDIRECT_URL,
     },
 
     database: {

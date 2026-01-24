@@ -1,6 +1,7 @@
-import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { WebClient } from "@slack/web-api";
+import { DatabaseService } from "../database";
 
 export interface SlackBlock {
   type: string;
@@ -24,32 +25,68 @@ export interface SlackBlock {
 @Injectable()
 export class SlackService implements OnModuleInit {
   private readonly logger = new Logger(SlackService.name);
-  private client: WebClient | null = null;
+  private fallbackClient: WebClient | null = null;
+  private readonly clientCache = new Map<string, WebClient>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly db: DatabaseService,
+  ) {}
 
   onModuleInit() {
     const botToken = this.configService.get<string>("slack.botToken");
 
     if (botToken && botToken !== "xoxb-placeholder") {
-      this.client = new WebClient(botToken);
-      this.logger.log("Slack client initialized");
+      this.fallbackClient = new WebClient(botToken);
+      this.logger.log("Slack fallback client initialized from env");
     } else {
-      this.logger.warn("Slack bot token not configured - API calls will fail");
+      this.logger.warn(
+        "No fallback Slack bot token configured - will use per-workspace tokens only",
+      );
     }
   }
 
-  private getClient(): WebClient {
-    if (!this.client) {
-      throw new Error("Slack client not initialized");
+  private async getClientForWorkspace(teamId?: string): Promise<WebClient> {
+    if (!teamId) {
+      if (this.fallbackClient) return this.fallbackClient;
+      throw new Error("No teamId provided and no fallback client configured");
     }
-    return this.client;
+
+    const cached = this.clientCache.get(teamId);
+    if (cached) return cached;
+
+    const workspace = await this.db.slackWorkspace.findUnique({
+      where: { teamId },
+    });
+
+    if (workspace) {
+      const client = new WebClient(workspace.botToken);
+      this.clientCache.set(teamId, client);
+      return client;
+    }
+
+    if (this.fallbackClient) {
+      this.logger.warn(
+        `No workspace found for teamId ${teamId}, using fallback client`,
+      );
+      return this.fallbackClient;
+    }
+
+    throw new Error(
+      `No workspace found for teamId ${teamId} and no fallback configured`,
+    );
+  }
+
+  /** Clear cached client for a workspace (e.g. after token refresh) */
+  clearCachedClient(teamId: string): void {
+    this.clientCache.delete(teamId);
   }
 
   async createChannel(
-    name: string
+    name: string,
+    teamId?: string,
   ): Promise<{ channelId: string; channelName: string }> {
-    const client = this.getClient();
+    const client = await this.getClientForWorkspace(teamId);
     const sanitizedName = this.sanitizeChannelName(name);
 
     const result = await client.conversations.create({
@@ -72,9 +109,10 @@ export class SlackService implements OnModuleInit {
   async postMessage(
     channelId: string,
     text: string,
-    blocks?: SlackBlock[]
+    blocks?: SlackBlock[],
+    teamId?: string,
   ): Promise<{ ts: string }> {
-    const client = this.getClient();
+    const client = await this.getClientForWorkspace(teamId);
 
     const result = await client.chat.postMessage({
       channel: channelId,
@@ -91,17 +129,21 @@ export class SlackService implements OnModuleInit {
     return { ts: result.ts };
   }
 
-  async setChannelTopic(channelId: string, topic: string): Promise<void> {
-    const client = this.getClient();
+  async setChannelTopic(
+    channelId: string,
+    topic: string,
+    teamId?: string,
+  ): Promise<void> {
+    const client = await this.getClientForWorkspace(teamId);
 
     await client.conversations.setTopic({
       channel: channelId,
-      topic: topic.substring(0, 250), // Slack topic limit
+      topic: topic.substring(0, 250),
     });
   }
 
-  async archiveChannel(channelId: string): Promise<void> {
-    const client = this.getClient();
+  async archiveChannel(channelId: string, teamId?: string): Promise<void> {
+    const client = await this.getClientForWorkspace(teamId);
 
     await client.conversations.archive({
       channel: channelId,
@@ -110,8 +152,8 @@ export class SlackService implements OnModuleInit {
     this.logger.log(`Archived Slack channel: ${channelId}`);
   }
 
-  async unarchiveChannel(channelId: string): Promise<void> {
-    const client = this.getClient();
+  async unarchiveChannel(channelId: string, teamId?: string): Promise<void> {
+    const client = await this.getClientForWorkspace(teamId);
 
     await client.conversations.unarchive({
       channel: channelId,
@@ -121,9 +163,10 @@ export class SlackService implements OnModuleInit {
   }
 
   async getUserInfo(
-    userId: string
+    userId: string,
+    teamId?: string,
   ): Promise<{ id: string; name: string; real_name?: string }> {
-    const client = this.getClient();
+    const client = await this.getClientForWorkspace(teamId);
 
     const result = await client.users.info({
       user: userId,
@@ -140,8 +183,11 @@ export class SlackService implements OnModuleInit {
     };
   }
 
-  async lookupUserByEmail(email: string): Promise<string | null> {
-    const client = this.getClient();
+  async lookupUserByEmail(
+    email: string,
+    teamId?: string,
+  ): Promise<string | null> {
+    const client = await this.getClientForWorkspace(teamId);
 
     try {
       const result = await client.users.lookupByEmail({ email });
@@ -154,10 +200,14 @@ export class SlackService implements OnModuleInit {
     }
   }
 
-  async inviteToChannel(channelId: string, userIds: string[]): Promise<void> {
+  async inviteToChannel(
+    channelId: string,
+    userIds: string[],
+    teamId?: string,
+  ): Promise<void> {
     if (userIds.length === 0) return;
 
-    const client = this.getClient();
+    const client = await this.getClientForWorkspace(teamId);
 
     try {
       await client.conversations.invite({
@@ -165,7 +215,6 @@ export class SlackService implements OnModuleInit {
         users: userIds.join(","),
       });
     } catch (error: any) {
-      // Handle already_in_channel gracefully
       if (error?.data?.error === "already_in_channel") {
         return;
       }
@@ -173,10 +222,12 @@ export class SlackService implements OnModuleInit {
     }
   }
 
-  async listUsers(): Promise<
+  async listUsers(
+    teamId?: string,
+  ): Promise<
     Array<{ id: string; name: string; real_name?: string; email?: string }>
   > {
-    const client = this.getClient();
+    const client = await this.getClientForWorkspace(teamId);
     const users: Array<{
       id: string;
       name: string;
@@ -204,8 +255,6 @@ export class SlackService implements OnModuleInit {
   }
 
   private sanitizeChannelName(name: string): string {
-    // Slack channel names: lowercase, max 80 chars
-    // Only allows: lowercase letters, numbers, underscores
     return name
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, "_")

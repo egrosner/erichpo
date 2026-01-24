@@ -149,7 +149,7 @@ export const checkRunEventSchema = z.object({
     pull_requests: z.array(
       z.object({
         number: z.number(),
-      })
+      }),
     ),
   }),
   repository: repositorySchema,

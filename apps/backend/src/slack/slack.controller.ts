@@ -48,7 +48,7 @@ export class SlackController {
       // Only handle regular messages
       if (messageEvent.type === "message" && messageEvent.user) {
         this.logger.log(
-          `Received message from ${messageEvent.user} in ${messageEvent.channel}`
+          `Received message from ${messageEvent.user} in ${messageEvent.channel}`,
         );
 
         await this.integrationService.handleSlackMessage(
@@ -56,7 +56,8 @@ export class SlackController {
           messageEvent.user,
           messageEvent.text,
           messageEvent.ts,
-          event.event_id
+          event.event_id,
+          event.team_id,
         );
       }
     }

@@ -1,3 +1,4 @@
+import { resolve } from "path";
 import {
   Injectable,
   type OnModuleDestroy,
@@ -12,8 +13,10 @@ export class DatabaseService
   implements OnModuleInit, OnModuleDestroy
 {
   constructor() {
-    const dbUrl =
+    const rawPath =
       process.env.DATABASE_URL?.replace("file:", "") || "./data/pr-channels.db";
+    const prismaDir = resolve(__dirname, "../../../prisma");
+    const dbUrl = resolve(prismaDir, rawPath);
     const adapter = new PrismaBetterSqlite3({ url: dbUrl });
     super({ adapter });
   }

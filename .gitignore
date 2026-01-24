@@ -11,7 +11,7 @@ dist/
 # Database
 *.db
 *.db-journal
-database/
+/database/
 
 # IDE
 .idea/

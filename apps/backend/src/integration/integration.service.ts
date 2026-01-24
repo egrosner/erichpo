@@ -184,7 +184,7 @@ export class IntegrationService {
 
     const { pull_request: pr, repository, installation } = event;
 
-    const { teamId } = await this.resolveWorkspaceForInstallation(
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
 
@@ -193,7 +193,75 @@ export class IntegrationService {
       repository.name,
       pr.number,
     );
-    if (!mapping) return;
+
+    if (!mapping) {
+      // Channel was never created — create it now
+      const channelName = this.generateChannelName(
+        repository.name,
+        pr.number,
+        pr.head.ref,
+      );
+
+      const { channelId, channelName: actualName } =
+        await this.slackService.createChannel(channelName, teamId);
+
+      await this.db.prChannelMapping.create({
+        data: {
+          githubRepoOwner: repository.owner.login,
+          githubRepoName: repository.name,
+          githubPrNumber: pr.number,
+          githubPrNodeId: pr.node_id,
+          githubInstallationId: installation?.id,
+          slackChannelId: channelId,
+          slackChannelName: actualName,
+          slackWorkspaceId: workspaceId,
+          prTitle: pr.title,
+          prAuthor: pr.user.login,
+          prUrl: pr.html_url,
+        },
+      });
+
+      await this.slackService.setChannelTopic(
+        channelId,
+        `PR #${pr.number}: ${pr.title} | ${pr.html_url}`,
+        teamId,
+      );
+
+      await this.slackService.postMessage(
+        channelId,
+        `PR #${pr.number} reopened by ${pr.user.login}`,
+        this.buildPrOpenedBlocks(pr, repository.full_name),
+        teamId,
+      );
+
+      try {
+        const authorSlackId = await this.resolveGitHubUserToSlack(
+          pr.user.login,
+          repository.owner.login,
+          repository.name,
+          installation?.id,
+          teamId,
+          workspaceId,
+        );
+        if (authorSlackId) {
+          await this.slackService.inviteToChannel(
+            channelId,
+            [authorSlackId],
+            teamId,
+          );
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Could not invite PR author ${pr.user.login} to channel: ${(error as Error).message}`,
+        );
+      }
+
+      await this.recordDelivery(deliveryId, "github");
+      this.logger.log(
+        `Created channel ${actualName} for reopened PR #${pr.number} in ${repository.full_name}`,
+      );
+      return;
+    }
 
     await this.db.prChannelMapping.update({
       where: { id: mapping.id },
@@ -379,6 +447,9 @@ export class IntegrationService {
 
     const { comment, issue, repository, sender, installation } = event;
 
+    // Ignore comments from our own bot to prevent echo loops
+    if (sender.login.endsWith("[bot]")) return;
+
     const { teamId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
@@ -407,6 +478,10 @@ export class IntegrationService {
     if (await this.isDuplicateDelivery(deliveryId, "github")) return;
 
     const { review, pull_request: pr, repository, installation } = event;
+
+    // Skip "commented" reviews with no body — these are just container events
+    // for individual review comments, which are handled by handlePrReviewComment
+    if (review.state === "commented" && !review.body) return;
 
     const { teamId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
@@ -467,6 +542,9 @@ export class IntegrationService {
 
     const { comment, pull_request: pr, repository, installation } = event;
 
+    // Ignore comments from our own bot to prevent echo loops
+    if (event.sender.login.endsWith("[bot]")) return;
+
     const { teamId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
@@ -478,26 +556,62 @@ export class IntegrationService {
     );
     if (!mapping) return;
 
-    await this.slackService.postMessage(
+    const blocks: SlackBlock[] = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${comment.body}`,
+        },
+        accessory: {
+          type: "button",
+          text: { type: "plain_text", text: "View" },
+          url: comment.html_url,
+          action_id: "view_comment",
+        },
+      },
+    ];
+
+    // If this is a reply to an existing review comment, post in the thread
+    if (comment.in_reply_to_id) {
+      const parentMapping = await this.db.slackMessageMapping.findFirst({
+        where: {
+          githubCommentId: comment.in_reply_to_id,
+          slackChannelId: mapping.slackChannelId,
+        },
+      });
+
+      if (parentMapping) {
+        await this.slackService.postMessage(
+          mapping.slackChannelId,
+          `Reply from ${comment.user.login}`,
+          blocks,
+          teamId,
+          parentMapping.slackMessageTs,
+        );
+        await this.recordDelivery(deliveryId, "github");
+        return;
+      }
+    }
+
+    // Top-level review comment — post as new message and store mapping
+    const { ts } = await this.slackService.postMessage(
       mapping.slackChannelId,
       `Review comment from ${comment.user.login}`,
-      [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${comment.body}`,
-          },
-          accessory: {
-            type: "button",
-            text: { type: "plain_text", text: "View" },
-            url: comment.html_url,
-            action_id: "view_comment",
-          },
-        },
-      ],
+      blocks,
       teamId,
     );
+
+    await this.db.slackMessageMapping.create({
+      data: {
+        slackChannelId: mapping.slackChannelId,
+        slackMessageTs: ts,
+        githubCommentId: comment.id,
+        githubRepoOwner: repository.owner.login,
+        githubRepoName: repository.name,
+        githubPrNumber: pr.number,
+      },
+    });
 
     await this.recordDelivery(deliveryId, "github");
   }
@@ -563,6 +677,7 @@ export class IntegrationService {
     ts: string,
     eventId: string,
     teamId?: string,
+    threadTs?: string,
   ): Promise<void> {
     if (await this.isDuplicateDelivery(eventId, "slack")) return;
 
@@ -575,8 +690,36 @@ export class IntegrationService {
     }
 
     const userInfo = await this.slackService.getUserInfo(userId, teamId);
-
     const commentBody = `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
+
+    // If this is a thread reply, check if the parent maps to a review comment
+    if (threadTs) {
+      const messageMapping = await this.db.slackMessageMapping.findUnique({
+        where: {
+          slackChannelId_slackMessageTs: {
+            slackChannelId: channelId,
+            slackMessageTs: threadTs,
+          },
+        },
+      });
+
+      if (messageMapping) {
+        await this.githubService.createReviewCommentReply(
+          messageMapping.githubRepoOwner,
+          messageMapping.githubRepoName,
+          messageMapping.githubPrNumber,
+          messageMapping.githubCommentId,
+          commentBody,
+          mapping.githubInstallationId ?? undefined,
+        );
+
+        await this.recordDelivery(eventId, "slack");
+        this.logger.log(
+          `Synced Slack thread reply to GitHub review comment #${messageMapping.githubCommentId}`,
+        );
+        return;
+      }
+    }
 
     await this.githubService.createPrComment(
       mapping.githubRepoOwner,

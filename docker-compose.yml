@@ -1,0 +1,15 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    ports:
+      - "4847:4847"
+    env_file:
+      - apps/backend/.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/app/database/pr-channels.db
+    volumes:
+      - ./database:/app/database
+    restart: unless-stopped

@@ -111,6 +111,7 @@ export class SlackService implements OnModuleInit {
     text: string,
     blocks?: SlackBlock[],
     teamId?: string,
+    threadTs?: string,
   ): Promise<{ ts: string }> {
     const client = await this.getClientForWorkspace(teamId);
 
@@ -118,6 +119,7 @@ export class SlackService implements OnModuleInit {
       channel: channelId,
       text,
       blocks,
+      thread_ts: threadTs,
       unfurl_links: false,
       unfurl_media: false,
     });

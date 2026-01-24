@@ -58,6 +58,7 @@ export class SlackController {
           messageEvent.ts,
           event.event_id,
           event.team_id,
+          messageEvent.thread_ts,
         );
       }
     }

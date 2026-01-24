@@ -80,6 +80,20 @@ model WebhookDelivery {
   @@map("webhook_deliveries")
 }
 
+model SlackMessageMapping {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  slackChannelId   String
+  slackMessageTs   String
+  githubCommentId  Int
+  githubRepoOwner  String
+  githubRepoName   String
+  githubPrNumber   Int
+
+  @@unique([slackChannelId, slackMessageTs])
+  @@map("slack_message_mappings")
+}
+
 model GitHubSlackUserMapping {
   id              Int      @id @default(autoincrement())
   createdAt       DateTime @default(now())

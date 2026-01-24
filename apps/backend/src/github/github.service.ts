@@ -67,6 +67,34 @@ export class GitHubService implements OnModuleInit {
     };
   }
 
+  async createReviewCommentReply(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    commentId: number,
+    body: string,
+    installationId?: number,
+  ): Promise<{ id: number; html_url: string }> {
+    const octokit = await this.getOctokit(installationId);
+
+    const response = await octokit.rest.pulls.createReplyForReviewComment({
+      owner,
+      repo,
+      pull_number: prNumber,
+      comment_id: commentId,
+      body,
+    });
+
+    this.logger.log(
+      `Created review comment reply on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
+    );
+
+    return {
+      id: response.data.id,
+      html_url: response.data.html_url,
+    };
+  }
+
   async getPullRequest(
     owner: string,
     repo: string,

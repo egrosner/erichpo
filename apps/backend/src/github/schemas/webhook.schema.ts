@@ -120,6 +120,7 @@ export const pullRequestReviewCommentEventSchema = z.object({
   comment: commentSchema.extend({
     path: z.string(),
     diff_hunk: z.string().optional(),
+    in_reply_to_id: z.number().optional(),
   }),
   pull_request: pullRequestSchema,
   repository: repositorySchema,

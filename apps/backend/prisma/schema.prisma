@@ -67,6 +67,10 @@ model PrChannelMapping {
   // Status: open, merged, closed
   status String @default("open")
 
+  // CI aggregation relations
+  checkRunResults  CheckRunResult[]
+  ciStatusMessages CiStatusMessage[]
+
   @@unique([githubRepoOwner, githubRepoName, githubPrNumber])
   @@index([slackChannelId])
   @@map("pr_channel_mappings")
@@ -107,4 +111,48 @@ model GitHubSlackUserMapping {
 
   @@unique([githubUsername, slackWorkspaceId])
   @@map("github_slack_user_mappings")
+}
+
+// Stores individual check run results for CI aggregation
+model CheckRunResult {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // GitHub identifiers
+  checkRunId       Int
+  headSha          String
+  name             String
+  status           String   // queued, in_progress, completed
+  conclusion       String?  // success, failure, neutral, cancelled, skipped, timed_out, action_required
+  detailsUrl       String
+
+  // Link to PR channel
+  prChannelMappingId Int
+  prChannelMapping   PrChannelMapping @relation(fields: [prChannelMappingId], references: [id])
+
+  @@unique([checkRunId, prChannelMappingId])
+  @@index([headSha, prChannelMappingId])
+  @@map("check_run_results")
+}
+
+// Stores the aggregated CI status Slack message for a commit
+model CiStatusMessage {
+  id               Int      @id @default(autoincrement())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Commit SHA this message represents
+  headSha          String
+
+  // Slack message identifiers
+  slackChannelId   String
+  slackMessageTs   String
+
+  // Link to PR channel
+  prChannelMappingId Int
+  prChannelMapping   PrChannelMapping @relation(fields: [prChannelMappingId], references: [id])
+
+  @@unique([headSha, prChannelMappingId])
+  @@map("ci_status_messages")
 }

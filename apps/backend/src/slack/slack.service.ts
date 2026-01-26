@@ -131,6 +131,23 @@ export class SlackService implements OnModuleInit {
     return { ts: result.ts };
   }
 
+  async updateMessage(
+    channelId: string,
+    ts: string,
+    text: string,
+    blocks?: SlackBlock[],
+    teamId?: string,
+  ): Promise<void> {
+    const client = await this.getClientForWorkspace(teamId);
+
+    await client.chat.update({
+      channel: channelId,
+      ts,
+      text,
+      blocks,
+    });
+  }
+
   async setChannelTopic(
     channelId: string,
     topic: string,

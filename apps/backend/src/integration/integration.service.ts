@@ -636,36 +636,177 @@ export class IntegrationService {
       );
       if (!mapping) continue;
 
-      const emoji =
-        check_run.conclusion === "success"
-          ? ":white_check_mark:"
-          : check_run.conclusion === "failure"
-            ? ":x:"
-            : ":warning:";
-
-      await this.slackService.postMessage(
-        mapping.slackChannelId,
-        `Check ${check_run.name}: ${check_run.conclusion}`,
-        [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `${emoji} *${check_run.name}*: ${check_run.conclusion}`,
-            },
-            accessory: {
-              type: "button",
-              text: { type: "plain_text", text: "Details" },
-              url: check_run.html_url,
-              action_id: "view_check",
-            },
+      // Store/update this check run result
+      await this.db.checkRunResult.upsert({
+        where: {
+          checkRunId_prChannelMappingId: {
+            checkRunId: check_run.id,
+            prChannelMappingId: mapping.id,
           },
-        ],
-        teamId,
+        },
+        update: {
+          status: check_run.status,
+          conclusion: check_run.conclusion,
+          detailsUrl: check_run.html_url,
+          updatedAt: new Date(),
+        },
+        create: {
+          checkRunId: check_run.id,
+          headSha: check_run.head_sha,
+          name: check_run.name,
+          status: check_run.status,
+          conclusion: check_run.conclusion,
+          detailsUrl: check_run.html_url,
+          prChannelMappingId: mapping.id,
+        },
+      });
+
+      // Get all check runs for this commit
+      const allCheckRuns = await this.db.checkRunResult.findMany({
+        where: {
+          headSha: check_run.head_sha,
+          prChannelMappingId: mapping.id,
+        },
+        orderBy: { name: "asc" },
+      });
+
+      // Build the aggregated CI status message
+      const { text, blocks } = this.buildCiStatusBlocks(
+        allCheckRuns,
+        check_run.head_sha,
       );
+
+      // Check if we already have a CI status message for this commit
+      const existingMessage = await this.db.ciStatusMessage.findUnique({
+        where: {
+          headSha_prChannelMappingId: {
+            headSha: check_run.head_sha,
+            prChannelMappingId: mapping.id,
+          },
+        },
+      });
+
+      if (existingMessage) {
+        // Update the existing message
+        await this.slackService.updateMessage(
+          mapping.slackChannelId,
+          existingMessage.slackMessageTs,
+          text,
+          blocks,
+          teamId,
+        );
+      } else {
+        // Create a new aggregated message
+        const { ts } = await this.slackService.postMessage(
+          mapping.slackChannelId,
+          text,
+          blocks,
+          teamId,
+        );
+
+        // Store the message reference
+        await this.db.ciStatusMessage.create({
+          data: {
+            headSha: check_run.head_sha,
+            slackChannelId: mapping.slackChannelId,
+            slackMessageTs: ts,
+            prChannelMappingId: mapping.id,
+          },
+        });
+      }
     }
 
     await this.recordDelivery(deliveryId, "github");
+  }
+
+  private buildCiStatusBlocks(
+    checkRuns: Array<{
+      name: string;
+      status: string;
+      conclusion: string | null;
+      detailsUrl: string;
+    }>,
+    headSha: string,
+  ): { text: string; blocks: SlackBlock[] } {
+    const passed = checkRuns.filter((c) => c.conclusion === "success").length;
+    const failed = checkRuns.filter(
+      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
+    ).length;
+    const inProgress = checkRuns.filter((c) => c.status !== "completed").length;
+    const total = checkRuns.length;
+
+    // Determine overall status
+    let overallEmoji: string;
+    let overallStatus: string;
+
+    if (inProgress > 0) {
+      overallEmoji = ":hourglass_flowing_sand:";
+      overallStatus = "CI in progress";
+    } else if (failed > 0) {
+      overallEmoji = ":x:";
+      overallStatus = "CI failed";
+    } else if (passed === total) {
+      overallEmoji = ":white_check_mark:";
+      overallStatus = "CI passed";
+    } else {
+      overallEmoji = ":warning:";
+      overallStatus = "CI completed with warnings";
+    }
+
+    const text = `${overallStatus} (${passed}/${total} passed) for ${headSha.substring(0, 7)}`;
+
+    // Build check run list
+    const checkLines = checkRuns
+      .map((c) => {
+        const emoji = this.getCheckRunEmoji(c.status, c.conclusion);
+        const status =
+          c.status === "completed" ? c.conclusion || "completed" : c.status;
+        return `${emoji} <${c.detailsUrl}|${c.name}>: ${status}`;
+      })
+      .join("\n");
+
+    const blocks: SlackBlock[] = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `${overallEmoji} *${overallStatus}* for \`${headSha.substring(0, 7)}\`\n${passed}/${total} checks passed${failed > 0 ? `, ${failed} failed` : ""}${inProgress > 0 ? `, ${inProgress} in progress` : ""}`,
+        },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: checkLines,
+        },
+      },
+    ];
+
+    return { text, blocks };
+  }
+
+  private getCheckRunEmoji(status: string, conclusion: string | null): string {
+    if (status !== "completed") {
+      return status === "in_progress"
+        ? ":arrows_counterclockwise:"
+        : ":hourglass:";
+    }
+
+    switch (conclusion) {
+      case "success":
+        return ":white_check_mark:";
+      case "failure":
+      case "timed_out":
+        return ":x:";
+      case "cancelled":
+        return ":no_entry_sign:";
+      case "skipped":
+        return ":fast_forward:";
+      case "neutral":
+        return ":white_circle:";
+      default:
+        return ":warning:";
+    }
   }
 
   // ========== Slack -> GitHub ==========

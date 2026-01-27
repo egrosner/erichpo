@@ -147,9 +147,9 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"completed\",\n  \"check_run\": {\n    \"id\": 1,\n    \"name\": \"CI / build\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"html_url\": \"https://github.com/org/repo/runs/1\",\n    \"pull_requests\": [{ \"number\": 1 }]\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"github-actions[bot]\", \"id\": 100 },\n  \"installation\": { \"id\": 12345 }\n}"
+              "raw": "{\n  \"action\": \"completed\",\n  \"check_run\": {\n    \"id\": 1,\n    \"name\": \"CI / build\",\n    \"head_sha\": \"abc1234def5678\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"html_url\": \"https://github.com/org/repo/runs/1\",\n    \"pull_requests\": [{ \"number\": 1 }]\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"github-actions[bot]\", \"id\": 100 },\n  \"installation\": { \"id\": 12345 }\n}"
             },
-            "description": "Simulates a GitHub check_run completed webhook event."
+            "description": "Simulates a GitHub check_run completed webhook event. CI check results are aggregated into a single Slack message per commit SHA, which updates as more checks complete."
           }
         },
         {

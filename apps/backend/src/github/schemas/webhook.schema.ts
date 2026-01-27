@@ -134,6 +134,7 @@ export const checkRunEventSchema = z.object({
   check_run: z.object({
     id: z.number(),
     name: z.string(),
+    head_sha: z.string(),
     status: z.enum(["queued", "in_progress", "completed"]),
     conclusion: z
       .enum([

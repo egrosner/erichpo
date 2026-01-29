@@ -450,7 +450,7 @@ export class IntegrationService {
     // Ignore comments from our own bot to prevent echo loops
     if (sender.login.endsWith("[bot]")) return;
 
-    const { teamId } = await this.resolveWorkspaceForInstallation(
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
 
@@ -461,10 +461,21 @@ export class IntegrationService {
     );
     if (!mapping) return;
 
+    // Process @mentions in comment body
+    const { processedText } = await this.processGitHubMentions(
+      comment.body,
+      mapping.slackChannelId,
+      repository.owner.login,
+      repository.name,
+      installation?.id,
+      teamId,
+      workspaceId,
+    );
+
     await this.slackService.postMessage(
       mapping.slackChannelId,
       `Comment from ${sender.login}`,
-      this.buildCommentBlocks(comment.body, sender.login, comment.html_url),
+      this.buildCommentBlocks(processedText, sender.login, comment.html_url),
       teamId,
     );
 
@@ -483,7 +494,7 @@ export class IntegrationService {
     // for individual review comments, which are handled by handlePrReviewComment
     if (review.state === "commented" && !review.body) return;
 
-    const { teamId } = await this.resolveWorkspaceForInstallation(
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
 
@@ -510,6 +521,21 @@ export class IntegrationService {
       pending: "started review",
     }[review.state];
 
+    // Process @mentions in review body if present
+    let processedBody = review.body || "";
+    if (review.body) {
+      const { processedText } = await this.processGitHubMentions(
+        review.body,
+        mapping.slackChannelId,
+        repository.owner.login,
+        repository.name,
+        installation?.id,
+        teamId,
+        workspaceId,
+      );
+      processedBody = processedText;
+    }
+
     await this.slackService.postMessage(
       mapping.slackChannelId,
       `${review.user.login} ${stateText}`,
@@ -518,7 +544,7 @@ export class IntegrationService {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `${stateEmoji} *${review.user.login}* ${stateText}${review.body ? `\n\n${review.body}` : ""}`,
+            text: `${stateEmoji} *${review.user.login}* ${stateText}${processedBody ? `\n\n${processedBody}` : ""}`,
           },
           accessory: {
             type: "button",
@@ -545,7 +571,7 @@ export class IntegrationService {
     // Ignore comments from our own bot to prevent echo loops
     if (event.sender.login.endsWith("[bot]")) return;
 
-    const { teamId } = await this.resolveWorkspaceForInstallation(
+    const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
 
@@ -556,12 +582,23 @@ export class IntegrationService {
     );
     if (!mapping) return;
 
+    // Process @mentions in comment body
+    const { processedText } = await this.processGitHubMentions(
+      comment.body,
+      mapping.slackChannelId,
+      repository.owner.login,
+      repository.name,
+      installation?.id,
+      teamId,
+      workspaceId,
+    );
+
     const blocks: SlackBlock[] = [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${comment.body}`,
+          text: `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${processedText}`,
         },
         accessory: {
           type: "button",
@@ -1077,5 +1114,94 @@ export class IntegrationService {
         },
       },
     ];
+  }
+
+  // ========== Mention Processing ==========
+
+  /**
+   * Extracts GitHub @mentions from text and returns the usernames.
+   * Matches @username patterns but excludes email-like patterns.
+   */
+  private extractGitHubMentions(text: string): string[] {
+    // Match @username but not email addresses (no preceding alphanumeric or dot)
+    const mentionRegex =
+      /(?<![a-zA-Z0-9.])@([a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)/g;
+    const mentions: string[] = [];
+
+    for (const match of text.matchAll(mentionRegex)) {
+      const username = match[1];
+      if (!mentions.includes(username)) {
+        mentions.push(username);
+      }
+    }
+
+    return mentions;
+  }
+
+  /**
+   * Processes GitHub @mentions in text, converting them to Slack <@USERID> format.
+   * Also invites mentioned users to the channel.
+   *
+   * Returns the text with mentions replaced and the list of resolved Slack user IDs.
+   */
+  private async processGitHubMentions(
+    text: string,
+    channelId: string,
+    owner: string,
+    repo: string,
+    installationId?: number,
+    teamId?: string,
+    workspaceId?: number,
+  ): Promise<{ processedText: string; mentionedSlackIds: string[] }> {
+    const mentions = this.extractGitHubMentions(text);
+    let processedText = text;
+    const mentionedSlackIds: string[] = [];
+
+    for (const username of mentions) {
+      try {
+        const slackUserId = await this.resolveGitHubUserToSlack(
+          username,
+          owner,
+          repo,
+          installationId,
+          teamId,
+          workspaceId,
+        );
+
+        if (slackUserId) {
+          // Replace @username with Slack mention format
+          const githubMentionRegex = new RegExp(
+            `(?<![a-zA-Z0-9.])@${username}(?![a-zA-Z0-9-])`,
+            "g",
+          );
+          processedText = processedText.replace(
+            githubMentionRegex,
+            `<@${slackUserId}>`,
+          );
+          mentionedSlackIds.push(slackUserId);
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Could not resolve mention @${username} to Slack: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    // Invite mentioned users to the channel
+    if (mentionedSlackIds.length > 0) {
+      try {
+        await this.slackService.inviteToChannel(
+          channelId,
+          mentionedSlackIds,
+          teamId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not invite mentioned users to channel: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    return { processedText, mentionedSlackIds };
   }
 }

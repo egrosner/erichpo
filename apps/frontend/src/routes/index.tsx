@@ -1,10 +1,11 @@
-import { createRoute } from '@tanstack/react-router'
+import { createRoute, Link } from '@tanstack/react-router'
 import { Route as rootRoute } from './__root'
 import { GitBranch, MessageSquare, Zap, Users, Archive, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { useAuth } from '@/lib/auth'
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
@@ -21,17 +22,7 @@ function LandingPage() {
             <GitBranch className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">erichpo</span>
           </div>
-          <nav className="flex items-center gap-6">
-            <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
-              Features
-            </a>
-            <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">
-              How it Works
-            </a>
-            <Button asChild>
-              <a href="/api/oauth/slack/install">Add to Slack</a>
-            </Button>
-          </nav>
+          <HeaderNav />
         </div>
       </header>
 
@@ -206,5 +197,39 @@ function Step({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function HeaderNav() {
+  const { isAuthenticated, isLoading, user, login } = useAuth()
+
+  return (
+    <nav className="flex items-center gap-6">
+      <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+        Features
+      </a>
+      <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">
+        How it Works
+      </a>
+      {isLoading ? (
+        <Button disabled>Loading...</Button>
+      ) : isAuthenticated ? (
+        <>
+          <span className="text-sm text-muted-foreground">{user?.githubUsername}</span>
+          <Button asChild>
+            <Link to="/dashboard">Dashboard</Link>
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button variant="outline" onClick={login}>
+            Sign in with GitHub
+          </Button>
+          <Button asChild>
+            <a href="/api/oauth/slack/install">Add to Slack</a>
+          </Button>
+        </>
+      )}
+    </nav>
   )
 }

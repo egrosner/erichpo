@@ -9,6 +9,37 @@ datasource db {
   provider = "sqlite"
 }
 
+// User authenticated via GitHub OAuth
+model User {
+  id             Int       @id @default(autoincrement())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  githubId       Int       @unique
+  githubUsername String
+  email          String?
+  avatarUrl      String?
+  role           String    @default("user") // "admin" | "user"
+  sessions       Session[]
+
+  @@map("users")
+}
+
+// Session for JWT refresh/revocation
+model Session {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipAddress String?
+  revokedAt DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
 model SlackWorkspace {
   id          Int      @id @default(autoincrement())
   createdAt   DateTime @default(now())

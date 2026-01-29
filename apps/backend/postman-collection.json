@@ -197,6 +197,48 @@
       ]
     },
     {
+      "name": "Auth",
+      "description": "User authentication endpoints. Admin endpoints require authentication with admin role.",
+      "item": [
+        {
+          "name": "GitHub OAuth Login",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/github",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "github"]
+            },
+            "description": "Redirects to GitHub OAuth consent screen. After authorization, redirects back to /api/auth/github/callback which sets an auth_token cookie and redirects to /dashboard."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Returns the currently authenticated user. Requires auth_token cookie or Bearer token."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Revokes the current session and clears the auth_token cookie. Redirects to /."
+          }
+        }
+      ]
+    },
+    {
       "name": "OAuth",
       "item": [
         {
@@ -246,6 +288,7 @@
     },
     {
       "name": "Admin",
+      "description": "Admin endpoints for managing workspaces and user mappings. Requires authentication with admin role (set via ADMIN_GITHUB_IDS env var).",
       "item": [
         {
           "name": "List Workspaces",

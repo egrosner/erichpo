@@ -7,12 +7,14 @@ WORKDIR /app
 # Copy workspace root files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/backend/package.json apps/backend/
+COPY packages/shared/package.json packages/shared/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source
 COPY apps/backend/ apps/backend/
+COPY packages/shared/ packages/shared/
 
 # Generate Prisma client
 RUN cd apps/backend && npx prisma generate
@@ -30,8 +32,12 @@ WORKDIR /app
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/backend/package.json apps/backend/
+COPY packages/shared/package.json packages/shared/
 
 RUN pnpm install --frozen-lockfile
+
+# Copy shared package source (needed at runtime for type imports)
+COPY packages/shared/ packages/shared/
 
 # Copy built output, Prisma schema, and config
 COPY --from=base /app/apps/backend/dist apps/backend/dist

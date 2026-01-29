@@ -415,21 +415,27 @@ export class IntegrationService {
       );
     }
 
-    const reviewerName = event.requested_reviewer
-      ? event.requested_reviewer.login
-      : event.requested_team
-        ? `team ${event.requested_team.name}`
-        : "unknown";
+    // Build reviewer display: use Slack mentions if resolved, otherwise plain text
+    let reviewerDisplay: string;
+    if (slackUserIds.length > 0) {
+      reviewerDisplay = slackUserIds.map((id) => `<@${id}>`).join(", ");
+    } else if (event.requested_reviewer) {
+      reviewerDisplay = event.requested_reviewer.login;
+    } else if (event.requested_team) {
+      reviewerDisplay = `team ${event.requested_team.name}`;
+    } else {
+      reviewerDisplay = "unknown";
+    }
 
     await this.slackService.postMessage(
       mapping.slackChannelId,
-      `Review requested from ${reviewerName}`,
+      `Review requested from ${event.requested_reviewer?.login ?? event.requested_team?.name ?? "reviewer"}`,
       [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `:eyes: *Review requested* from *${reviewerName}*`,
+            text: `:eyes: *Review requested* from ${reviewerDisplay}`,
           },
         },
       ],

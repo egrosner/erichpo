@@ -134,9 +134,6 @@ function LandingPage() {
             <p className="text-muted-foreground mb-8">
               Get started in minutes. No credit card required.
             </p>
-            <Button size="lg" asChild>
-              <a href="/api/oauth/slack/install">Add to Slack</a>
-            </Button>
           </div>
         </section>
       </main>
@@ -221,14 +218,9 @@ function HeaderNav() {
           </Button>
         </>
       ) : (
-        <>
-          <Button variant="outline" onClick={login}>
-            Sign in with GitHub
-          </Button>
-          <Button asChild>
-            <a href="/api/oauth/slack/install">Add to Slack</a>
-          </Button>
-        </>
+        <Button variant="outline" onClick={login}>
+          Sign in with GitHub
+        </Button>
       )}
     </nav>
   )

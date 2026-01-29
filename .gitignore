@@ -8,6 +8,9 @@ dist/
 .env
 .env.local
 
+# Secrets
+*.pem
+
 # Database
 *.db
 *.db-journal

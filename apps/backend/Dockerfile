@@ -43,6 +43,6 @@ RUN cd apps/backend && npx prisma generate
 
 WORKDIR /app/apps/backend
 
-EXPOSE 4847
+EXPOSE 4848
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main"]

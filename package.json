@@ -7,6 +7,8 @@
   },
   "scripts": {
     "dev": "pnpm --filter \"./apps/*\" run dev",
+    "dev:frontend": "pnpm --filter frontend run dev",
+    "dev:backend": "pnpm --filter backend run dev",
     "test": "pnpm --filter \"./apps/*\" run test",
     "db:migrate": "pnpm --filter \"./apps/backend\" exec prisma migrate dev",
     "db:migrate:deploy": "pnpm --filter \"./apps/backend\" exec prisma migrate deploy"

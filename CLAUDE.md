@@ -11,6 +11,8 @@ Bidirectional GitHub-Slack PR integration: creates temporary Slack channels for 
 ```bash
 # Development (from root)
 pnpm dev                    # Runs all apps in watch mode
+pnpm dev:frontend           # Runs frontend only
+pnpm dev:backend            # Runs backend only
 pnpm test                   # Runs tests across all apps
 
 # Backend-specific (from apps/backend/)
@@ -23,6 +25,11 @@ pnpm test                   # Vitest unit tests
 pnpm test:watch             # Vitest watch mode
 pnpm test:e2e               # E2E tests (vitest.config.e2e.ts)
 
+# Frontend-specific (from apps/frontend/)
+pnpm dev                    # Vite dev server (port 3847)
+pnpm build                  # Production build
+pnpm preview                # Preview production build
+
 # Database
 npx prisma migrate dev      # Create/apply migrations (development)
 npx prisma migrate deploy   # Apply migrations (production)
@@ -32,12 +39,16 @@ npx prisma generate         # Regenerate Prisma client
 ## Architecture
 
 ```
+                    React Frontend (Vite + shadcn/ui + Tailwind)
+                              ↓
 GitHub Webhooks → NestJS Backend ← Slack Events
                        ↓
                   SQLite (Prisma)
 ```
 
-**Workspace:** pnpm monorepo (`apps/*`, `packages/*`). Currently only `apps/backend`.
+**Workspace:** pnpm monorepo with `apps/backend` (NestJS API) and `apps/frontend` (React SPA).
+
+**Frontend stack:** React 19, Vite, TypeScript, Tailwind CSS v4, shadcn/ui. Uses `@/*` import alias for `src/*`.
 
 **Module dependency graph (no circular deps, no forwardRef):**
 ```
@@ -68,7 +79,7 @@ GitHub/Slack modules are **pure service modules** (no controllers). All webhook 
 - `GET /api/admin/org-mappings` — List GitHub installation → Slack workspace links
 - `GET/POST /api/admin/user-mappings` — User mapping management (workspace-scoped via `workspace_id` query param)
 - `GET /api/admin/slack-users` — List Slack users (workspace-scoped via `team_id` query param)
-- `GET /` — Health check
+- `GET /api/health` — Health check
 
 ## Key Patterns
 
@@ -82,7 +93,7 @@ GitHub/Slack modules are **pure service modules** (no controllers). All webhook 
 
 ## Environment
 
-Requires Node >= 24.13.0, pnpm 10.28.1. See `apps/backend/.env.example` for all env vars. Key ones: `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY_BASE64`, `GITHUB_WEBHOOK_SECRET`, `SLACK_BOT_TOKEN` (fallback, optional with multi-workspace), `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_OAUTH_REDIRECT_URL`, `DATABASE_URL`. Default port: 4847.
+Requires Node >= 24.13.0, pnpm 10.28.1. See `apps/backend/.env.example` for all env vars. Key ones: `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY_BASE64`, `GITHUB_WEBHOOK_SECRET`, `SLACK_BOT_TOKEN` (fallback, optional with multi-workspace), `SLACK_SIGNING_SECRET`, `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_OAUTH_REDIRECT_URL`, `DATABASE_URL`. Default backend port: 4848, frontend dev port: 3847.
 
 ## Commit Conventions
 
@@ -94,7 +105,25 @@ Scope is optional but encouraged (e.g., `feat(admin): add user mapping endpoint`
 
 ## Code Quality
 
-Uses **Biome** (not ESLint/Prettier). Run `pnpm check` for combined lint+format. Tests use **Vitest** with SWC.
+Uses **Biome** (not ESLint/Prettier) for backend. Run `pnpm check` for combined lint+format. Tests use **Vitest** with SWC.
+
+## Adding UI Components
+
+Use shadcn CLI to add components to the frontend:
+```bash
+pnpm dlx shadcn@latest add button
+pnpm dlx shadcn@latest add card
+```
+
+## Docker
+
+Docker Compose runs backend, frontend, and Caddy reverse proxy:
+```bash
+docker compose up              # Run all services
+docker compose up --build      # Rebuild and run
+```
+
+Caddy listens on port 4847 and routes `/api/*` to backend, everything else to frontend.
 
 ## Postman Collection
 

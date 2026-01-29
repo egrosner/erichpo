@@ -3,13 +3,29 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-    ports:
-      - "4847:4847"
     env_file:
       - apps/backend/.env
     environment:
       NODE_ENV: production
       DATABASE_URL: file:/app/database/pr-channels.db
+      PORT: 4848
     volumes:
       - ./database:/app/database
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:alpine
+    ports:
+      - "4847:4847"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - backend
+      - frontend
     restart: unless-stopped

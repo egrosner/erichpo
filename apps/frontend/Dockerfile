@@ -7,12 +7,14 @@ WORKDIR /app
 # Copy workspace root files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/frontend/package.json apps/frontend/
+COPY packages/shared/package.json packages/shared/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source
 COPY apps/frontend/ apps/frontend/
+COPY packages/shared/ packages/shared/
 
 # Build
 RUN pnpm --filter frontend build

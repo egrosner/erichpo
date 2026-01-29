@@ -8,6 +8,9 @@ const configSchema = z.object({
     webhookSecret: z.string().optional(),
     appId: z.string().optional(),
     privateKey: z.string().optional(),
+    clientId: z.string().optional(), // OAuth Client ID (different from App ID)
+    clientSecret: z.string().optional(), // For user OAuth
+    oauthCallbackUrl: z.string().optional(),
   }),
 
   slack: z.object({
@@ -24,6 +27,14 @@ const configSchema = z.object({
 
   channel: z.object({
     prefix: z.string().default("_pr_"),
+  }),
+
+  auth: z.object({
+    jwtSecret: z.string().min(32).optional(),
+    jwtExpiresIn: z.string().default("7d"),
+    sessionMaxAge: z.coerce.number().default(7 * 24 * 60 * 60 * 1000), // 7 days in ms
+    adminGithubIds: z.string().optional(), // Comma-separated GitHub user IDs
+    cookieSecure: z.boolean().default(true),
   }),
 });
 
@@ -43,6 +54,9 @@ export function configuration(): Config {
             "base64",
           ).toString()
         : process.env.GITHUB_PRIVATE_KEY,
+      clientId: process.env.GITHUB_CLIENT_ID, // OAuth Client ID (Iv1.xxx format)
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      oauthCallbackUrl: process.env.GITHUB_OAUTH_CALLBACK_URL,
     },
 
     slack: {
@@ -59,6 +73,14 @@ export function configuration(): Config {
 
     channel: {
       prefix: process.env.SLACK_CHANNEL_PREFIX,
+    },
+
+    auth: {
+      jwtSecret: process.env.JWT_SECRET,
+      jwtExpiresIn: process.env.JWT_EXPIRES_IN,
+      sessionMaxAge: process.env.SESSION_MAX_AGE,
+      adminGithubIds: process.env.ADMIN_GITHUB_IDS,
+      cookieSecure: process.env.NODE_ENV === "production",
     },
   };
 

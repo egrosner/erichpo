@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { JwtAuthGuard, Roles, RolesGuard } from "../auth";
 import { AdminService } from "./admin.service";
 
 @Controller("api/admin")
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("admin")
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

@@ -362,7 +362,8 @@ export class IntegrationService {
     );
     if (!mapping) return;
 
-    const slackUserIds: string[] = [];
+    const slackUserIdsToInvite: string[] = [];
+    let explicitReviewerSlackId: string | null = null;
 
     try {
       if (event.requested_reviewer) {
@@ -374,7 +375,10 @@ export class IntegrationService {
           teamId,
           workspaceId,
         );
-        if (slackId) slackUserIds.push(slackId);
+        if (slackId) {
+          slackUserIdsToInvite.push(slackId);
+          explicitReviewerSlackId = slackId;
+        }
       }
 
       if (event.requested_team) {
@@ -393,7 +397,7 @@ export class IntegrationService {
               teamId,
               workspaceId,
             );
-            if (slackId) slackUserIds.push(slackId);
+            if (slackId) slackUserIdsToInvite.push(slackId);
           } catch (error) {
             this.logger.warn(
               `Could not resolve team member ${member} to Slack: ${(error as Error).message}`,
@@ -402,10 +406,10 @@ export class IntegrationService {
         }
       }
 
-      if (slackUserIds.length > 0) {
+      if (slackUserIdsToInvite.length > 0) {
         await this.slackService.inviteToChannel(
           mapping.slackChannelId,
-          slackUserIds,
+          slackUserIdsToInvite,
           teamId,
         );
       }
@@ -415,10 +419,10 @@ export class IntegrationService {
       );
     }
 
-    // Build reviewer display: use Slack mentions if resolved, otherwise plain text
+    // Build reviewer display: only @mention explicitly tagged reviewers, not team members
     let reviewerDisplay: string;
-    if (slackUserIds.length > 0) {
-      reviewerDisplay = slackUserIds.map((id) => `<@${id}>`).join(", ");
+    if (explicitReviewerSlackId) {
+      reviewerDisplay = `<@${explicitReviewerSlackId}>`;
     } else if (event.requested_reviewer) {
       reviewerDisplay = event.requested_reviewer.login;
     } else if (event.requested_team) {

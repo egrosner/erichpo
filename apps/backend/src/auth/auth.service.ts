@@ -82,8 +82,16 @@ export class AuthService {
     // Fetch GitHub user info
     const githubUser = await this.fetchGitHubUser(accessToken);
 
-    // Determine role (check if user is in admin list)
-    const role = this.determineUserRole(githubUser.id);
+    // Check if user exists
+    const existingUser = await this.db.user.findUnique({
+      where: { githubId: githubUser.id },
+    });
+
+    // Determine role: promote to admin if in env var, otherwise keep existing or default to "user"
+    const isInAdminList = this.isInAdminList(githubUser.id);
+    const role = isInAdminList
+      ? "admin"
+      : (existingUser?.role as UserRole) ?? "user";
 
     // Upsert user in database
     const user = await this.db.user.upsert({
@@ -92,7 +100,8 @@ export class AuthService {
         githubUsername: githubUser.login,
         email: githubUser.email,
         avatarUrl: githubUser.avatar_url,
-        role,
+        // Only update role if promoting to admin
+        ...(isInAdminList && { role: "admin" }),
       },
       create: {
         githubId: githubUser.id,
@@ -173,16 +182,16 @@ export class AuthService {
     this.logger.log(`Revoked ${result.count} sessions for user ${userId}`);
   }
 
-  private determineUserRole(githubId: number): UserRole {
+  private isInAdminList(githubId: number): boolean {
     const adminIdsStr = this.configService.get<string>("auth.adminGithubIds");
-    if (!adminIdsStr) return "user";
+    if (!adminIdsStr) return false;
 
     const adminIds = adminIdsStr
       .split(",")
       .map((id) => Number.parseInt(id.trim(), 10))
       .filter((id) => !Number.isNaN(id));
 
-    return adminIds.includes(githubId) ? "admin" : "user";
+    return adminIds.includes(githubId);
   }
 
   private generateJwt(

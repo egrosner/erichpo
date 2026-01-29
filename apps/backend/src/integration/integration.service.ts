@@ -362,6 +362,28 @@ export class IntegrationService {
     );
     if (!mapping) return;
 
+    // Check if this is a re-review request by looking for previous reviews from this user
+    let isReReview = false;
+    if (event.requested_reviewer) {
+      try {
+        const existingReviews = await this.githubService.getPullRequestReviews(
+          repository.owner.login,
+          repository.name,
+          pr.number,
+          installation?.id,
+        );
+        isReReview = existingReviews.some(
+          (review) =>
+            review.user === event.requested_reviewer?.login &&
+            review.state !== "PENDING",
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Could not check for existing reviews: ${(error as Error).message}`,
+        );
+      }
+    }
+
     const slackUserIdsToInvite: string[] = [];
     let explicitReviewerSlackId: string | null = null;
 
@@ -431,15 +453,20 @@ export class IntegrationService {
       reviewerDisplay = "unknown";
     }
 
+    // Use different message for re-review requests
+    const emoji = isReReview ? ":arrows_counterclockwise:" : ":eyes:";
+    const action = isReReview ? "Re-review requested" : "Review requested";
+    const fallbackText = `${action} from ${event.requested_reviewer?.login ?? event.requested_team?.name ?? "reviewer"}`;
+
     await this.slackService.postMessage(
       mapping.slackChannelId,
-      `Review requested from ${event.requested_reviewer?.login ?? event.requested_team?.name ?? "reviewer"}`,
+      fallbackText,
       [
         {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `:eyes: *Review requested* from ${reviewerDisplay}`,
+            text: `${emoji} *${action}* from ${reviewerDisplay}`,
           },
         },
       ],

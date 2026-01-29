@@ -188,4 +188,26 @@ export class GitHubService implements OnModuleInit {
 
     return response.data.map((member) => member.login);
   }
+
+  async getPullRequestReviews(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    installationId?: number,
+  ): Promise<Array<{ user: string; state: string }>> {
+    const octokit = await this.getOctokit(installationId);
+
+    const response = await octokit.rest.pulls.listReviews({
+      owner,
+      repo,
+      pull_number: prNumber,
+    });
+
+    return response.data
+      .filter((review) => review.user?.login)
+      .map((review) => ({
+        user: review.user?.login as string,
+        state: review.state,
+      }));
+  }
 }

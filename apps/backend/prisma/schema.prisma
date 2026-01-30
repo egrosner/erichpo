@@ -11,15 +11,16 @@ datasource db {
 
 // User authenticated via GitHub OAuth
 model User {
-  id             Int       @id @default(autoincrement())
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  githubId       Int       @unique
-  githubUsername String
-  email          String?
-  avatarUrl      String?
-  role           String    @default("user") // "admin" | "user"
-  sessions       Session[]
+  id                   Int                   @id @default(autoincrement())
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  githubId             Int                   @unique
+  githubUsername       String
+  email                String?
+  avatarUrl            String?
+  role                 String                @default("user") // DEPRECATED: kept for migration, use WorkspaceMembership.role instead
+  sessions             Session[]
+  workspaceMemberships WorkspaceMembership[]
 
   @@map("users")
 }
@@ -50,9 +51,10 @@ model SlackWorkspace {
   botUserId   String?
   installedBy String?
 
-  orgMappings  OrgMapping[]
-  prChannels   PrChannelMapping[]
-  userMappings GitHubSlackUserMapping[]
+  orgMappings          OrgMapping[]
+  prChannels           PrChannelMapping[]
+  userMappings         GitHubSlackUserMapping[]
+  workspaceMemberships WorkspaceMembership[]
 
   @@map("slack_workspaces")
 }
@@ -186,4 +188,21 @@ model CiStatusMessage {
 
   @@unique([headSha, prChannelMappingId])
   @@map("ci_status_messages")
+}
+
+// User membership in a Slack workspace with per-workspace role
+model WorkspaceMembership {
+  id               Int            @id @default(autoincrement())
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  userId           Int
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slackWorkspaceId Int
+  slackWorkspace   SlackWorkspace @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
+  role             String         @default("user") // "admin" | "user"
+
+  @@unique([userId, slackWorkspaceId])
+  @@index([userId])
+  @@index([slackWorkspaceId])
+  @@map("workspace_memberships")
 }

@@ -3,14 +3,14 @@ import { useAuth } from "@/lib/auth";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireAdmin?: boolean;
+  requireWorkspace?: boolean;
 }
 
 export function ProtectedRoute({
   children,
-  requireAdmin = false,
+  requireWorkspace = false,
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isAdmin, isLoading } = useAuth();
+  const { isAuthenticated, hasWorkspaces, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -24,8 +24,8 @@ export function ProtectedRoute({
     return <Navigate to="/" />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/dashboard" />;
+  if (requireWorkspace && !hasWorkspaces) {
+    return <Navigate to="/no-workspace" />;
   }
 
   return <>{children}</>;

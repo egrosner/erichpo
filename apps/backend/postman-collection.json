@@ -149,7 +149,7 @@
               "mode": "raw",
               "raw": "{\n  \"action\": \"completed\",\n  \"check_run\": {\n    \"id\": 1,\n    \"name\": \"CI / build\",\n    \"head_sha\": \"abc1234def5678\",\n    \"status\": \"completed\",\n    \"conclusion\": \"success\",\n    \"html_url\": \"https://github.com/org/repo/runs/1\",\n    \"pull_requests\": [{ \"number\": 1 }]\n  },\n  \"repository\": {\n    \"id\": 1,\n    \"name\": \"repo\",\n    \"full_name\": \"org/repo\",\n    \"owner\": { \"login\": \"org\", \"id\": 1 }\n  },\n  \"sender\": { \"login\": \"github-actions[bot]\", \"id\": 100 },\n  \"installation\": { \"id\": 12345 }\n}"
             },
-            "description": "Simulates a GitHub check_run completed webhook event. CI check results are aggregated into a single Slack message per commit SHA, which updates as more checks complete."
+            "description": "Simulates a GitHub check_run completed webhook event."
           }
         },
         {
@@ -198,7 +198,7 @@
     },
     {
       "name": "Auth",
-      "description": "User authentication endpoints. Admin endpoints require authentication with admin role.",
+      "description": "User authentication endpoints. Uses workspace-scoped roles for authorization.",
       "item": [
         {
           "name": "GitHub OAuth Login",
@@ -221,7 +221,24 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "me"]
             },
-            "description": "Returns the currently authenticated user. Requires auth_token cookie or Bearer token."
+            "description": "Returns the currently authenticated user including their workspace memberships and current workspace context. Requires auth_token cookie or Bearer token."
+          }
+        },
+        {
+          "name": "Switch Workspace",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/switch-workspace",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "switch-workspace"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workspaceId\": 1\n}"
+            },
+            "description": "Switches the user's current workspace context. Updates the JWT with the new workspace ID. User must be a member of the target workspace."
           }
         },
         {
@@ -257,7 +274,7 @@
                 }
               ]
             },
-            "description": "Redirects to Slack OAuth consent screen. The installation_id is encoded in the OAuth state parameter to link the workspace to the GitHub installation after authorization."
+            "description": "Redirects to Slack OAuth consent screen. The installation_id is encoded in the OAuth state parameter. If the user is authenticated, they will be automatically added as a workspace admin upon completion."
           }
         },
         {
@@ -265,7 +282,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/oauth/slack/callback?code=test-code&state=eyJpbnN0YWxsYXRpb25faWQiOjEyMzQ1fQ",
+              "raw": "{{baseUrl}}/api/oauth/slack/callback?code=test-code&state=uuid-state-key",
               "host": ["{{baseUrl}}"],
               "path": ["api", "oauth", "slack", "callback"],
               "query": [
@@ -276,30 +293,30 @@
                 },
                 {
                   "key": "state",
-                  "value": "eyJpbnN0YWxsYXRpb25faWQiOjEyMzQ1fQ",
-                  "description": "Base64url-encoded state with installation_id"
+                  "value": "uuid-state-key",
+                  "description": "State key that maps to installation_id and optional user_id on the server"
                 }
               ]
             },
-            "description": "OAuth callback endpoint. Exchanges the code for a bot token, stores the SlackWorkspace, and creates the OrgMapping. Called by Slack after user authorizes the app."
+            "description": "OAuth callback endpoint. Exchanges the code for a bot token, stores the SlackWorkspace, creates the OrgMapping, and creates a WorkspaceMembership for the installer as admin."
           }
         }
       ]
     },
     {
       "name": "Admin",
-      "description": "Admin endpoints for managing workspaces and user mappings. Requires authentication with admin role (set via ADMIN_GITHUB_IDS env var).",
+      "description": "Admin endpoints for managing the current workspace. Requires authentication with workspace admin role. All endpoints are scoped to the user's current workspace.",
       "item": [
         {
-          "name": "List Workspaces",
+          "name": "Get Current Workspace",
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/admin/workspaces",
+              "raw": "{{baseUrl}}/api/admin/workspace",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "workspaces"]
+              "path": ["api", "admin", "workspace"]
             },
-            "description": "Lists all connected Slack workspaces (bot tokens are excluded from response)."
+            "description": "Returns details about the current workspace (bot tokens are excluded)."
           }
         },
         {
@@ -311,7 +328,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "org-mappings"]
             },
-            "description": "Lists all GitHub installation → Slack workspace mappings."
+            "description": "Lists GitHub installation → Slack workspace mappings for the current workspace."
           }
         },
         {
@@ -319,18 +336,11 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/admin/slack-users?team_id=T12345",
+              "raw": "{{baseUrl}}/api/admin/slack-users",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "slack-users"],
-              "query": [
-                {
-                  "key": "team_id",
-                  "value": "T12345",
-                  "description": "Optional: Slack team ID to scope the user list to a specific workspace"
-                }
-              ]
+              "path": ["api", "admin", "slack-users"]
             },
-            "description": "Lists all non-bot Slack users. Optionally scoped to a specific workspace by team_id."
+            "description": "Lists all non-bot Slack users in the current workspace."
           }
         },
         {
@@ -375,9 +385,9 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"githubUsername\": \"octocat\",\n  \"slackUserId\": \"U12345\",\n  \"slackWorkspaceId\": 1\n}"
+              "raw": "{\n  \"githubUsername\": \"octocat\",\n  \"slackUserId\": \"U12345\"\n}"
             },
-            "description": "Creates or updates a GitHub-to-Slack user mapping. The slackWorkspaceId is optional — omit it for a global (non-workspace-scoped) mapping."
+            "description": "Creates or updates a GitHub-to-Slack user mapping for the current workspace."
           }
         },
         {
@@ -385,18 +395,83 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/admin/user-mappings?workspace_id=1",
+              "raw": "{{baseUrl}}/api/admin/user-mappings",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "admin", "user-mappings"],
-              "query": [
+              "path": ["api", "admin", "user-mappings"]
+            },
+            "description": "Lists all GitHub-to-Slack user mappings for the current workspace."
+          }
+        },
+        {
+          "name": "List Workspace Members",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "members"]
+            },
+            "description": "Lists all members of the current workspace with their roles."
+          }
+        },
+        {
+          "name": "Invite Workspace Member",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/members/invite",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "members", "invite"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"githubUsername\": \"octocat\",\n  \"role\": \"user\"\n}"
+            },
+            "description": "Invites a user to the current workspace by their GitHub username. The user must have logged in at least once. Role can be 'admin' or 'user' (defaults to 'user')."
+          }
+        },
+        {
+          "name": "Update Member Role",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/members/:userId/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "members", ":userId", "role"],
+              "variable": [
                 {
-                  "key": "workspace_id",
+                  "key": "userId",
                   "value": "1",
-                  "description": "Optional: filter by workspace ID"
+                  "description": "User ID to update"
                 }
               ]
             },
-            "description": "Lists all GitHub-to-Slack user mappings. Optionally filtered by workspace_id."
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}"
+            },
+            "description": "Updates a member's role in the current workspace. Cannot demote the last admin."
+          }
+        },
+        {
+          "name": "Remove Workspace Member",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/members/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "members", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "1",
+                  "description": "User ID to remove"
+                }
+              ]
+            },
+            "description": "Removes a member from the current workspace. Cannot remove yourself or the last admin."
           }
         }
       ]

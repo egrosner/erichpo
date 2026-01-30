@@ -1,11 +1,13 @@
 // Auth schemas and types
 export {
-  userRoleSchema,
+  workspaceRoleSchema,
+  workspaceMembershipSchema,
   userSchema,
   jwtPayloadSchema,
   currentUserSchema,
   authErrorSchema,
-  type UserRole,
+  type WorkspaceRole,
+  type WorkspaceMembership,
   type User,
   type JwtPayload,
   type CurrentUser,

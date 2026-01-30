@@ -20,7 +20,7 @@ export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
   private readonly pendingStates = new Map<
     string,
-    { installationId: number; createdAt: number }
+    { installationId: number; userId?: number; createdAt: number }
   >();
 
   constructor(
@@ -29,7 +29,7 @@ export class OAuthService {
     private readonly slackService: SlackService,
   ) {}
 
-  getInstallUrl(installationId: number): string {
+  getInstallUrl(installationId: number, userId?: number): string {
     const clientId = this.configService.get<string>("slack.clientId");
     if (!clientId) {
       throw new Error("SLACK_CLIENT_ID not configured");
@@ -49,6 +49,7 @@ export class OAuthService {
     const stateKey = crypto.randomUUID();
     this.pendingStates.set(stateKey, {
       installationId,
+      userId,
       createdAt: Date.now(),
     });
 
@@ -71,25 +72,29 @@ export class OAuthService {
 
     const url = `https://slack.com/oauth/v2/authorize?${params.toString()}`;
     this.logger.log(
-      `OAuth install redirect for installation ${installationId}, state=${stateKey}`,
+      `OAuth install redirect for installation ${installationId}${userId ? `, user ${userId}` : ""}, state=${stateKey}`,
     );
     return url;
   }
 
-  getInstallationIdForState(stateKey: string): number | null {
+  getStateData(
+    stateKey: string,
+  ): { installationId: number; userId?: number } | null {
     const pending = this.pendingStates.get(stateKey);
     if (!pending) return null;
     this.pendingStates.delete(stateKey);
-    return pending.installationId;
+    return { installationId: pending.installationId, userId: pending.userId };
   }
 
   async handleCallback(
     code: string,
     installationId: number | null,
+    installerUserId?: number,
   ): Promise<{
     teamId: string;
     teamName: string;
     installationId: number | null;
+    workspaceId: number;
   }> {
     const clientId = this.configService.get<string>("slack.clientId");
     const clientSecret = this.configService.get<string>("slack.clientSecret");
@@ -164,10 +169,34 @@ export class OAuthService {
       );
     }
 
+    // Create workspace membership for the installer as admin
+    if (installerUserId) {
+      await this.db.workspaceMembership.upsert({
+        where: {
+          userId_slackWorkspaceId: {
+            userId: installerUserId,
+            slackWorkspaceId: workspace.id,
+          },
+        },
+        update: {
+          role: "admin", // Upgrade to admin if already a member
+        },
+        create: {
+          userId: installerUserId,
+          slackWorkspaceId: workspace.id,
+          role: "admin",
+        },
+      });
+      this.logger.log(
+        `Added user ${installerUserId} as admin to workspace ${workspace.id}`,
+      );
+    }
+
     return {
       teamId: data.team.id,
       teamName: data.team.name,
       installationId,
+      workspaceId: workspace.id,
     };
   }
 }

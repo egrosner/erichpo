@@ -1,7 +1,8 @@
 import type {
   JwtPayload as AppJwtPayload,
   CurrentUser,
-  UserRole,
+  WorkspaceMembership,
+  WorkspaceRole,
 } from "@erichpo/shared";
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -82,17 +83,6 @@ export class AuthService {
     // Fetch GitHub user info
     const githubUser = await this.fetchGitHubUser(accessToken);
 
-    // Check if user exists
-    const existingUser = await this.db.user.findUnique({
-      where: { githubId: githubUser.id },
-    });
-
-    // Determine role: promote to admin if in env var, otherwise keep existing or default to "user"
-    const isInAdminList = this.isInAdminList(githubUser.id);
-    const role = isInAdminList
-      ? "admin"
-      : (existingUser?.role as UserRole) ?? "user";
-
     // Upsert user in database
     const user = await this.db.user.upsert({
       where: { githubId: githubUser.id },
@@ -100,17 +90,20 @@ export class AuthService {
         githubUsername: githubUser.login,
         email: githubUser.email,
         avatarUrl: githubUser.avatar_url,
-        // Only update role if promoting to admin
-        ...(isInAdminList && { role: "admin" }),
       },
       create: {
         githubId: githubUser.id,
         githubUsername: githubUser.login,
         email: githubUser.email,
         avatarUrl: githubUser.avatar_url,
-        role,
       },
     });
+
+    // Get user's workspace memberships
+    const workspaces = await this.getUserWorkspaces(user.id);
+
+    // Determine initial workspace (first workspace or null)
+    const currentWorkspace = workspaces.length > 0 ? workspaces[0] : null;
 
     // Create session
     const sessionMaxAge =
@@ -124,10 +117,10 @@ export class AuthService {
     });
 
     // Generate JWT
-    const token = this.generateJwt(user, session.id);
+    const token = this.generateJwt(user, session.id, currentWorkspace);
 
     this.logger.log(
-      `User ${githubUser.login} (${githubUser.id}) logged in, role=${role}`,
+      `User ${githubUser.login} (${githubUser.id}) logged in, workspaces=${workspaces.length}`,
     );
 
     return {
@@ -137,11 +130,47 @@ export class AuthService {
         githubUsername: user.githubUsername,
         email: user.email,
         avatarUrl: user.avatarUrl,
-        role: user.role as UserRole,
         sessionId: session.id,
+        workspaces,
+        currentWorkspace,
       },
       token,
     };
+  }
+
+  async getUserWorkspaces(userId: number): Promise<WorkspaceMembership[]> {
+    const memberships = await this.db.workspaceMembership.findMany({
+      where: { userId },
+      include: {
+        slackWorkspace: {
+          select: { id: true, teamId: true, teamName: true },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return memberships.map((m) => ({
+      workspaceId: m.slackWorkspace.id,
+      teamId: m.slackWorkspace.teamId,
+      teamName: m.slackWorkspace.teamName,
+      role: m.role as WorkspaceRole,
+    }));
+  }
+
+  async getWorkspaceRole(
+    userId: number,
+    workspaceId: number,
+  ): Promise<WorkspaceRole | null> {
+    const membership = await this.db.workspaceMembership.findUnique({
+      where: {
+        userId_slackWorkspaceId: {
+          userId,
+          slackWorkspaceId: workspaceId,
+        },
+      },
+    });
+
+    return membership ? (membership.role as WorkspaceRole) : null;
   }
 
   async validateSession(payload: AppJwtPayload): Promise<CurrentUser | null> {
@@ -155,14 +184,77 @@ export class AuthService {
       return null;
     }
 
+    // Get user's workspace memberships
+    const workspaces = await this.getUserWorkspaces(session.user.id);
+
+    // Determine current workspace from JWT or default to first workspace
+    let currentWorkspace: WorkspaceMembership | null = null;
+    if (payload.currentWorkspaceId) {
+      currentWorkspace =
+        workspaces.find((w) => w.workspaceId === payload.currentWorkspaceId) ??
+        null;
+    }
+    // If no currentWorkspaceId in JWT or workspace not found, use first workspace
+    if (!currentWorkspace && workspaces.length > 0) {
+      currentWorkspace = workspaces[0];
+    }
+
     return {
       id: session.user.id,
       githubId: session.user.githubId,
       githubUsername: session.user.githubUsername,
       email: session.user.email,
       avatarUrl: session.user.avatarUrl,
-      role: session.user.role as UserRole,
       sessionId: session.id,
+      workspaces,
+      currentWorkspace,
+    };
+  }
+
+  async switchWorkspace(
+    userId: number,
+    sessionId: string,
+    workspaceId: number,
+  ): Promise<{ user: CurrentUser; token: string }> {
+    // Verify user has membership in the target workspace
+    const role = await this.getWorkspaceRole(userId, workspaceId);
+    if (!role) {
+      throw new UnauthorizedException("User is not a member of this workspace");
+    }
+
+    // Get user data
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException("User not found");
+    }
+
+    // Get all workspaces
+    const workspaces = await this.getUserWorkspaces(userId);
+    const currentWorkspace =
+      workspaces.find((w) => w.workspaceId === workspaceId) ?? null;
+
+    // Generate new JWT with updated workspace context
+    const token = this.generateJwt(user, sessionId, currentWorkspace);
+
+    this.logger.log(
+      `User ${user.githubUsername} switched to workspace ${workspaceId}`,
+    );
+
+    return {
+      user: {
+        id: user.id,
+        githubId: user.githubId,
+        githubUsername: user.githubUsername,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        sessionId,
+        workspaces,
+        currentWorkspace,
+      },
+      token,
     };
   }
 
@@ -182,26 +274,14 @@ export class AuthService {
     this.logger.log(`Revoked ${result.count} sessions for user ${userId}`);
   }
 
-  private isInAdminList(githubId: number): boolean {
-    const adminIdsStr = this.configService.get<string>("auth.adminGithubIds");
-    if (!adminIdsStr) return false;
-
-    const adminIds = adminIdsStr
-      .split(",")
-      .map((id) => Number.parseInt(id.trim(), 10))
-      .filter((id) => !Number.isNaN(id));
-
-    return adminIds.includes(githubId);
-  }
-
   private generateJwt(
     user: {
       id: number;
       githubId: number;
       githubUsername: string;
-      role: string;
     },
     sessionId: string,
+    currentWorkspace: WorkspaceMembership | null,
   ): string {
     const secret = this.configService.get<string>("auth.jwtSecret");
     if (!secret) {
@@ -216,7 +296,7 @@ export class AuthService {
       sid: sessionId,
       githubId: user.githubId,
       username: user.githubUsername,
-      role: user.role as UserRole,
+      currentWorkspaceId: currentWorkspace?.workspaceId ?? null,
     };
 
     return jwt.sign(payload, secret, { expiresIn } as jwt.SignOptions);

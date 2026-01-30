@@ -1,5 +1,13 @@
 import type { CurrentUser } from "@erichpo/shared";
-import { Controller, Get, Query, Res, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Response } from "express";
 import { AuthService } from "./auth.service";
@@ -66,6 +74,37 @@ export class AuthController {
   @Get("me")
   me(@GetCurrentUser() user: CurrentUser) {
     return user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("switch-workspace")
+  async switchWorkspace(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() body: { workspaceId: number },
+    @Res() res: Response,
+  ) {
+    const { token, user: updatedUser } = await this.authService.switchWorkspace(
+      user.id,
+      user.sessionId,
+      body.workspaceId,
+    );
+
+    const isSecure =
+      this.configService.get<boolean>("auth.cookieSecure") ?? true;
+    const sessionMaxAge =
+      this.configService.get<number>("auth.sessionMaxAge") ??
+      7 * 24 * 60 * 60 * 1000;
+
+    // Update JWT cookie with new workspace context
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      maxAge: sessionMaxAge,
+      path: "/",
+    });
+
+    res.json(updatedUser);
   }
 
   @UseGuards(JwtAuthGuard)

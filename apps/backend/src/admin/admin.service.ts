@@ -99,6 +99,31 @@ export class AdminService {
     });
   }
 
+  async deleteUserMapping(githubUsername: string, slackWorkspaceId: number) {
+    const mapping = await this.db.gitHubSlackUserMapping.findFirst({
+      where: {
+        githubUsername,
+        slackWorkspaceId,
+      },
+    });
+
+    if (!mapping) {
+      throw new NotFoundException(
+        `No mapping found for GitHub user "${githubUsername}" in this workspace`,
+      );
+    }
+
+    await this.db.gitHubSlackUserMapping.delete({
+      where: { id: mapping.id },
+    });
+
+    this.logger.log(
+      `Deleted mapping for GitHub user ${githubUsername} (workspace ${slackWorkspaceId})`,
+    );
+
+    return { success: true };
+  }
+
   // Workspace member management
 
   async listWorkspaceMembers(workspaceId: number) {

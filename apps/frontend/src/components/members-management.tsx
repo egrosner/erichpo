@@ -24,8 +24,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserPlus, Trash2 } from "lucide-react";
+import { Users, UserPlus, Trash2, ChevronsUpDown, Check, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface WorkspaceMember {
   userId: number;
@@ -37,6 +51,106 @@ interface WorkspaceMember {
   joinedAt: string;
 }
 
+interface SlackUser {
+  id: string;
+  name: string;
+  real_name?: string;
+  email?: string;
+}
+
+interface UserMapping {
+  id: number;
+  githubUsername: string;
+  slackUserId: string;
+}
+
+function SlackUserCombobox({
+  slackUsers,
+  selectedUserId,
+  onSelect,
+  disabled,
+}: {
+  slackUsers: SlackUser[];
+  selectedUserId: string | null;
+  onSelect: (userId: string | null) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedUser = selectedUserId
+    ? slackUsers.find((u) => u.id === selectedUserId)
+    : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-48 justify-between"
+          disabled={disabled}
+        >
+          {selectedUser ? (
+            <span className="truncate">
+              {selectedUser.real_name || selectedUser.name}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Select Slack user...</span>
+          )}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search users..." />
+          <CommandList>
+            <CommandEmpty>No user found.</CommandEmpty>
+            <CommandGroup>
+              {selectedUserId && (
+                <CommandItem
+                  value="__clear__"
+                  onSelect={() => {
+                    onSelect(null);
+                    setOpen(false);
+                  }}
+                >
+                  <X className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Clear mapping</span>
+                </CommandItem>
+              )}
+              {slackUsers.map((slackUser) => (
+                <CommandItem
+                  key={slackUser.id}
+                  value={`${slackUser.name} ${slackUser.real_name || ""} ${slackUser.email || ""}`}
+                  onSelect={() => {
+                    onSelect(slackUser.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      selectedUserId === slackUser.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <div className="flex flex-col">
+                    <span>{slackUser.real_name || slackUser.name}</span>
+                    {slackUser.real_name && slackUser.name !== slackUser.real_name && (
+                      <span className="text-xs text-muted-foreground">
+                        @{slackUser.name}
+                      </span>
+                    )}
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function MembersManagement() {
   const { currentWorkspace, user } = useAuth();
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -45,9 +159,14 @@ export function MembersManagement() {
   const [inviteRole, setInviteRole] = useState<"admin" | "user">("user");
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
+  const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
+  const [savingMapping, setSavingMapping] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMembers();
+    fetchSlackUsers();
+    fetchUserMappings();
   }, [currentWorkspace?.workspaceId]);
 
   const fetchMembers = async () => {
@@ -66,6 +185,76 @@ export function MembersManagement() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSlackUsers = async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      const res = await fetch("/api/admin/slack-users", { credentials: "include" });
+      if (res.ok) {
+        setSlackUsers(await res.json());
+      }
+    } catch (err) {
+      console.error("Failed to fetch Slack users:", err);
+    }
+  };
+
+  const fetchUserMappings = async () => {
+    if (!currentWorkspace) return;
+
+    try {
+      const res = await fetch("/api/admin/user-mappings", { credentials: "include" });
+      if (res.ok) {
+        setUserMappings(await res.json());
+      }
+    } catch (err) {
+      console.error("Failed to fetch user mappings:", err);
+    }
+  };
+
+  const handleMappingChange = async (githubUsername: string, slackUserId: string | null) => {
+    setSavingMapping(githubUsername);
+    setError(null);
+
+    try {
+      if (slackUserId) {
+        const res = await fetch("/api/admin/user-mappings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ githubUsername, slackUserId }),
+        });
+
+        if (res.ok) {
+          await fetchUserMappings();
+        } else {
+          const data = await res.json();
+          setError(data.message || "Failed to save mapping");
+        }
+      } else {
+        const res = await fetch(`/api/admin/user-mappings/${encodeURIComponent(githubUsername)}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          await fetchUserMappings();
+        } else {
+          const data = await res.json();
+          setError(data.message || "Failed to remove mapping");
+        }
+      }
+    } catch (err) {
+      setError("Failed to update mapping");
+    } finally {
+      setSavingMapping(null);
+    }
+  };
+
+  const getMappedSlackUserId = (githubUsername: string): string | null => {
+    const mapping = userMappings.find((m) => m.githubUsername === githubUsername);
+    return mapping?.slackUserId ?? null;
   };
 
   const handleInvite = async () => {
@@ -197,6 +386,7 @@ export function MembersManagement() {
             <TableHeader>
               <TableRow>
                 <TableHead>User</TableHead>
+                <TableHead>Slack User</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="w-[100px]">Actions</TableHead>
               </TableRow>
@@ -229,6 +419,16 @@ export function MembersManagement() {
                         )}
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <SlackUserCombobox
+                      slackUsers={slackUsers}
+                      selectedUserId={getMappedSlackUserId(member.githubUsername)}
+                      onSelect={(slackUserId) =>
+                        handleMappingChange(member.githubUsername, slackUserId)
+                      }
+                      disabled={savingMapping === member.githubUsername}
+                    />
                   </TableCell>
                   <TableCell>
                     {member.userId === user?.id ? (

@@ -88,6 +88,20 @@ export class AdminController {
     );
   }
 
+  @Delete("user-mappings/:githubUsername")
+  async deleteUserMapping(
+    @GetCurrentUser() user: CurrentUser,
+    @Param("githubUsername") githubUsername: string,
+  ) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.adminService.deleteUserMapping(
+      githubUsername,
+      user.currentWorkspace.workspaceId,
+    );
+  }
+
   // Workspace member management endpoints
 
   @Get("members")

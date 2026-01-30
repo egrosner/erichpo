@@ -403,6 +403,25 @@
           }
         },
         {
+          "name": "Delete User Mapping",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/user-mappings/:githubUsername",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "user-mappings", ":githubUsername"],
+              "variable": [
+                {
+                  "key": "githubUsername",
+                  "value": "octocat",
+                  "description": "GitHub username to remove mapping for"
+                }
+              ]
+            },
+            "description": "Deletes a GitHub-to-Slack user mapping for the current workspace."
+          }
+        },
+        {
           "name": "List Workspace Members",
           "request": {
             "method": "GET",

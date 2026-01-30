@@ -5,16 +5,20 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { CurrentUser } from "@erichpo/shared";
+import type { CurrentUser, WorkspaceMembership } from "@erichpo/shared";
 
 interface AuthContextType {
   user: CurrentUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isAdmin: boolean;
+  workspaces: WorkspaceMembership[];
+  currentWorkspace: WorkspaceMembership | null;
+  isWorkspaceAdmin: boolean;
+  hasWorkspaces: boolean;
   login: () => void;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
+  switchWorkspace: (workspaceId: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -50,16 +54,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = "/api/auth/logout";
   };
 
+  const switchWorkspace = async (workspaceId: number) => {
+    try {
+      const res = await fetch("/api/auth/switch-workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ workspaceId }),
+      });
+
+      if (res.ok) {
+        const updatedUser = await res.json();
+        setUser(updatedUser);
+      } else {
+        throw new Error("Failed to switch workspace");
+      }
+    } catch (error) {
+      console.error("Switch workspace error:", error);
+      throw error;
+    }
+  };
+
+  const workspaces = user?.workspaces ?? [];
+  const currentWorkspace = user?.currentWorkspace ?? null;
+  const isWorkspaceAdmin = currentWorkspace?.role === "admin";
+  const hasWorkspaces = workspaces.length > 0;
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isAuthenticated: !!user,
-        isAdmin: user?.role === "admin",
+        workspaces,
+        currentWorkspace,
+        isWorkspaceAdmin,
+        hasWorkspaces,
         login,
         logout,
         refetch: fetchUser,
+        switchWorkspace,
       }}
     >
       {children}

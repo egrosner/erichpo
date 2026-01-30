@@ -1,6 +1,8 @@
 import { createRoute, Link } from "@tanstack/react-router";
 import { Route as rootRoute } from "./__root";
 import { ProtectedRoute } from "@/components/protected-route";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { MembersManagement } from "@/components/members-management";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { GitBranch, Settings, LogOut } from "lucide-react";
+import { GitBranch, LogOut, Building2 } from "lucide-react";
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
@@ -27,7 +29,7 @@ function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isWorkspaceAdmin, currentWorkspace, logout } = useAuth();
 
   return (
     <div className="min-h-screen bg-background">
@@ -40,14 +42,7 @@ function DashboardContent() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            {isAdmin && (
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/admin">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Admin
-                </Link>
-              </Button>
-            )}
+            <WorkspaceSwitcher />
             <span className="text-sm text-muted-foreground">
               {user?.githubUsername}
             </span>
@@ -60,27 +55,66 @@ function DashboardContent() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          {currentWorkspace && (
+            <p className="text-muted-foreground">
+              {currentWorkspace.teamName}
+              {isWorkspaceAdmin && " (Admin)"}
+            </p>
+          )}
+        </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Welcome, {user?.githubUsername}</CardTitle>
-              <CardDescription>
-                You are logged in as {user?.role}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                GitHub ID: {user?.githubId}
-              </p>
-              {user?.email && (
+        <div className="grid gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Welcome, {user?.githubUsername}</CardTitle>
+                <CardDescription>
+                  {currentWorkspace
+                    ? `Connected to ${currentWorkspace.teamName}`
+                    : "No workspace selected"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Email: {user.email}
+                  GitHub ID: {user?.githubId}
                 </p>
-              )}
-            </CardContent>
-          </Card>
+                {user?.email && (
+                  <p className="text-sm text-muted-foreground">
+                    Email: {user.email}
+                  </p>
+                )}
+                {currentWorkspace && (
+                  <p className="text-sm text-muted-foreground">
+                    Role: {currentWorkspace.role}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {currentWorkspace && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <CardTitle>Current Workspace</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="font-medium">{currentWorkspace.teamName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Team ID: {currentWorkspace.teamId}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Your role: {currentWorkspace.role === "admin" ? "Admin" : "User"}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {isWorkspaceAdmin && <MembersManagement />}
         </div>
       </main>
     </div>

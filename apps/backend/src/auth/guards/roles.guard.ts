@@ -1,4 +1,4 @@
-import type { UserRole } from "@erichpo/shared";
+import type { WorkspaceRole } from "@erichpo/shared";
 import {
   type CanActivate,
   type ExecutionContext,
@@ -7,12 +7,13 @@ import {
 import { Reflector } from "@nestjs/core";
 import { ROLES_KEY } from "../decorators/roles.decorator";
 
+// DEPRECATED: Use WorkspaceRolesGuard instead
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(
+    const requiredRoles = this.reflector.getAllAndOverride<WorkspaceRole[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
     );
@@ -22,6 +23,9 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.includes(user.role);
+    // For backwards compatibility, check currentWorkspace role
+    return user?.currentWorkspace
+      ? requiredRoles.includes(user.currentWorkspace.role)
+      : false;
   }
 }

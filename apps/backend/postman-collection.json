@@ -492,6 +492,86 @@
             },
             "description": "Removes a member from the current workspace. Cannot remove yourself or the last admin."
           }
+        },
+        {
+          "name": "Create Invite Link",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/invite-links",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "invite-links"]
+            },
+            "description": "Creates a one-time invite link for the current workspace. The link expires in 7 days and can only be used once. Returns the invite token and expiration date."
+          }
+        },
+        {
+          "name": "List Invite Links",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/invite-links",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "invite-links"]
+            },
+            "description": "Lists all invite links for the current workspace, including their status (active, used, or expired)."
+          }
+        },
+        {
+          "name": "Delete Invite Link",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/invite-links/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "invite-links", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "1",
+                  "description": "Invite link ID to delete"
+                }
+              ]
+            },
+            "description": "Deletes (revokes) an invite link. The link will no longer be usable."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invite",
+      "description": "Public invite link endpoints for joining workspaces.",
+      "item": [
+        {
+          "name": "Visit Invite Link",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/invite/:token",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invite", ":token"],
+              "variable": [
+                {
+                  "key": "token",
+                  "value": "uuid-token-here",
+                  "description": "The invite token from the invite link"
+                }
+              ]
+            },
+            "description": "Public endpoint for visiting an invite link. If the user is logged in, immediately redeems the invite and adds them to the workspace. If not logged in, stores the token in a cookie and redirects to GitHub OAuth. After OAuth callback, redirects to /api/invite/complete."
+          }
+        },
+        {
+          "name": "Complete Invite",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/invite/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "invite", "complete"]
+            },
+            "description": "Completes the invite redemption after GitHub OAuth. Reads the pending_invite_token cookie, redeems the invite, switches to the new workspace, and redirects to /dashboard?invited={workspaceName}. Called automatically by the OAuth callback when a pending invite exists."
+          }
         }
       ]
     },

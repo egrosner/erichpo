@@ -38,7 +38,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserPlus, Trash2, ChevronsUpDown, Check, X } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Users, UserPlus, Trash2, ChevronsUpDown, Check, X, Link2, Copy, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface WorkspaceMember {
@@ -162,6 +163,9 @@ export function MembersManagement() {
   const [slackUsers, setSlackUsers] = useState<SlackUser[]>([]);
   const [userMappings, setUserMappings] = useState<UserMapping[]>([]);
   const [savingMapping, setSavingMapping] = useState<string | null>(null);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     fetchMembers();
@@ -332,6 +336,45 @@ export function MembersManagement() {
     }
   };
 
+  const handleGenerateInviteLink = async () => {
+    setGeneratingLink(true);
+    setError(null);
+    setGeneratedLink(null);
+    setLinkCopied(false);
+
+    try {
+      const res = await fetch("/api/admin/invite-links", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const link = `${window.location.origin}/api/invite/${data.token}`;
+        setGeneratedLink(link);
+      } else {
+        const data = await res.json();
+        setError(data.message || "Failed to generate invite link");
+      }
+    } catch (err) {
+      setError("Failed to generate invite link");
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!generatedLink) return;
+
+    try {
+      await navigator.clipboard.writeText(generatedLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      setError("Failed to copy link to clipboard");
+    }
+  };
+
   if (!currentWorkspace) {
     return null;
   }
@@ -377,6 +420,61 @@ export function MembersManagement() {
             <UserPlus className="h-4 w-4 mr-2" />
             Invite
           </Button>
+        </div>
+
+        <div className="border-t pt-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Link2 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">One-Time Invite Link</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Generate a link that allows one person to join this workspace. The link expires in 7 days.
+          </p>
+          {generatedLink ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={generatedLink}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyLink}
+                  title="Copy to clipboard"
+                >
+                  {linkCopied ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <Alert>
+                <AlertDescription>
+                  This link can only be used once. Copy it now or generate a new one.
+                </AlertDescription>
+              </Alert>
+              <Button
+                variant="outline"
+                onClick={handleGenerateInviteLink}
+                disabled={generatingLink}
+              >
+                <Link2 className="h-4 w-4 mr-2" />
+                Generate New Link
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleGenerateInviteLink}
+              disabled={generatingLink}
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              {generatingLink ? "Generating..." : "Generate Invite Link"}
+            </Button>
+          )}
         </div>
 
         {loading ? (

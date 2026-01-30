@@ -20,6 +20,8 @@ model User {
   avatarUrl            String?
   sessions             Session[]
   workspaceMemberships WorkspaceMembership[]
+  usedInviteLinks      InviteLink[]          @relation("UsedInviteLinks")
+  createdInviteLinks   InviteLink[]          @relation("CreatedInviteLinks")
 
   @@map("users")
 }
@@ -54,6 +56,7 @@ model SlackWorkspace {
   prChannels           PrChannelMapping[]
   userMappings         GitHubSlackUserMapping[]
   workspaceMemberships WorkspaceMembership[]
+  inviteLinks          InviteLink[]
 
   @@map("slack_workspaces")
 }
@@ -208,4 +211,22 @@ model WorkspaceMembership {
   @@index([userId])
   @@index([slackWorkspaceId])
   @@map("workspace_memberships")
+}
+
+// One-time invite link for workspace membership
+model InviteLink {
+  id               Int            @id @default(autoincrement())
+  createdAt        DateTime       @default(now())
+  token            String         @unique
+  expiresAt        DateTime
+  usedAt           DateTime?
+  usedById         Int?
+  usedBy           User?          @relation("UsedInviteLinks", fields: [usedById], references: [id])
+  slackWorkspaceId Int
+  slackWorkspace   SlackWorkspace @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
+  createdById      Int
+  createdBy        User           @relation("CreatedInviteLinks", fields: [createdById], references: [id])
+
+  @@index([token])
+  @@map("invite_links")
 }

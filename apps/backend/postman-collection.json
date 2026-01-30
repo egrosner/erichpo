@@ -475,6 +475,41 @@
           }
         }
       ]
+    },
+    {
+      "name": "Preferences",
+      "description": "User preference endpoints. Requires authentication (any role). Preferences are scoped to the user's current workspace.",
+      "item": [
+        {
+          "name": "Get User Preferences",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences"]
+            },
+            "description": "Returns the current user's notification preferences for the current workspace. Defaults to true for both slackMentions and slackInvites."
+          }
+        },
+        {
+          "name": "Update User Preferences",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/api/preferences",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "preferences"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slackMentions\": false,\n  \"slackInvites\": true\n}"
+            },
+            "description": "Updates the current user's notification preferences for the current workspace. slackMentions controls whether @mentions convert to Slack notifications. slackInvites controls whether the user is auto-invited to PR channels."
+          }
+        }
+      ]
     }
   ]
 }

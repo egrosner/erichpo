@@ -18,7 +18,6 @@ model User {
   githubUsername       String
   email                String?
   avatarUrl            String?
-  role                 String                @default("user") // DEPRECATED: kept for migration, use WorkspaceMembership.role instead
   sessions             Session[]
   workspaceMemberships WorkspaceMembership[]
 

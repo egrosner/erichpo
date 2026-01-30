@@ -5,6 +5,7 @@ import { AuthModule } from "./auth";
 import { ConfigModule } from "./config";
 import { DatabaseModule } from "./database";
 import { IntegrationModule } from "./integration";
+import { InviteModule } from "./invite/invite.module";
 import { OAuthModule } from "./oauth/oauth.module";
 import { PreferencesModule } from "./preferences";
 
@@ -17,6 +18,7 @@ import { PreferencesModule } from "./preferences";
     AdminModule,
     OAuthModule,
     PreferencesModule,
+    InviteModule,
   ],
   controllers: [AppController],
 })

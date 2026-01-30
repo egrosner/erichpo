@@ -1,4 +1,4 @@
-import { createRoute, Link } from "@tanstack/react-router";
+import { createRoute, Link, useSearch } from "@tanstack/react-router";
 import { Route as rootRoute } from "./__root";
 import { ProtectedRoute } from "@/components/protected-route";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -13,12 +13,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { GitBranch, LogOut, Building2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { GitBranch, LogOut, Building2, CheckCircle, AlertCircle, X } from "lucide-react";
+import { useState, useEffect } from "react";
+
+type DashboardSearch = {
+  invited?: string;
+  invite_error?: string;
+};
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dashboard",
   component: DashboardPage,
+  validateSearch: (search: Record<string, unknown>): DashboardSearch => ({
+    invited: typeof search.invited === "string" ? search.invited : undefined,
+    invite_error:
+      typeof search.invite_error === "string" ? search.invite_error : undefined,
+  }),
 });
 
 function DashboardPage() {
@@ -31,6 +43,19 @@ function DashboardPage() {
 
 function DashboardContent() {
   const { user, isWorkspaceAdmin, currentWorkspace, logout } = useAuth();
+  const { invited, invite_error } = useSearch({ from: "/dashboard" });
+  const [showInviteBanner, setShowInviteBanner] = useState(!!invited);
+  const [showErrorBanner, setShowErrorBanner] = useState(!!invite_error);
+
+  // Clear URL params after showing banner
+  useEffect(() => {
+    if (invited || invite_error) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invited");
+      url.searchParams.delete("invite_error");
+      window.history.replaceState({}, "", url.pathname);
+    }
+  }, [invited, invite_error]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -56,6 +81,42 @@ function DashboardContent() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        {showInviteBanner && invited && (
+          <Alert className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <AlertTitle>Welcome!</AlertTitle>
+            <AlertDescription className="flex items-center justify-between">
+              <span>You've successfully joined <strong>{invited}</strong>.</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowInviteBanner(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showErrorBanner && invite_error && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Invite Error</AlertTitle>
+            <AlertDescription className="flex items-center justify-between">
+              <span>{invite_error}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowErrorBanner(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Dashboard</h1>
           {currentWorkspace && (

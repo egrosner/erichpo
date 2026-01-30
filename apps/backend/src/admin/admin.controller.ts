@@ -17,13 +17,17 @@ import {
   WorkspaceRoles,
   WorkspaceRolesGuard,
 } from "../auth";
+import { InviteService } from "../invite/invite.service";
 import { AdminService } from "./admin.service";
 
 @Controller("api/admin")
 @UseGuards(JwtAuthGuard, WorkspaceRolesGuard)
 @WorkspaceRoles("admin")
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly inviteService: InviteService,
+  ) {}
 
   @Get("workspace")
   async getWorkspace(@GetCurrentUser() user: CurrentUser) {
@@ -158,6 +162,43 @@ export class AdminController {
       user.currentWorkspace.workspaceId,
       targetUserId,
       user.id,
+    );
+  }
+
+  // Invite link endpoints
+
+  @Post("invite-links")
+  async createInviteLink(@GetCurrentUser() user: CurrentUser) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.inviteService.createInviteLink(
+      user.currentWorkspace.workspaceId,
+      user.id,
+    );
+  }
+
+  @Get("invite-links")
+  async listInviteLinks(@GetCurrentUser() user: CurrentUser) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.inviteService.listInviteLinks(
+      user.currentWorkspace.workspaceId,
+    );
+  }
+
+  @Delete("invite-links/:id")
+  async deleteInviteLink(
+    @GetCurrentUser() user: CurrentUser,
+    @Param("id", ParseIntPipe) id: number,
+  ) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.inviteService.deleteInviteLink(
+      id,
+      user.currentWorkspace.workspaceId,
     );
   }
 }

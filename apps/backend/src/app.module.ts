@@ -6,6 +6,7 @@ import { ConfigModule } from "./config";
 import { DatabaseModule } from "./database";
 import { IntegrationModule } from "./integration";
 import { OAuthModule } from "./oauth/oauth.module";
+import { PreferencesModule } from "./preferences";
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { OAuthModule } from "./oauth/oauth.module";
     IntegrationModule,
     AdminModule,
     OAuthModule,
+    PreferencesModule,
   ],
   controllers: [AppController],
 })

@@ -3,6 +3,7 @@ import { Route as rootRoute } from "./__root";
 import { ProtectedRoute } from "@/components/protected-route";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { MembersManagement } from "@/components/members-management";
+import { UserPreferences } from "@/components/user-preferences";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +114,8 @@ function DashboardContent() {
               </Card>
             )}
           </div>
+
+          {currentWorkspace && <UserPreferences />}
 
           {isWorkspaceAdmin && <MembersManagement />}
         </div>

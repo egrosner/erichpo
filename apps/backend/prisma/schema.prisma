@@ -201,6 +201,10 @@ model WorkspaceMembership {
   slackWorkspace   SlackWorkspace @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
   role             String         @default("user") // "admin" | "user"
 
+  // Slack notification preferences
+  slackMentions Boolean @default(true) // Allow @mentions in Slack
+  slackInvites  Boolean @default(true) // Allow channel invitations
+
   @@unique([userId, slackWorkspaceId])
   @@index([userId])
   @@index([slackWorkspaceId])

@@ -42,6 +42,48 @@ export class IntegrationService {
     };
   }
 
+  /**
+   * Gets user preferences for Slack notifications.
+   * Looks up the user by their GitHub username and returns their workspace-specific preferences.
+   * Returns defaults (all true) if user or membership not found.
+   */
+  private async getUserPreferences(
+    githubUsername: string,
+    workspaceId?: number,
+  ): Promise<{ slackMentions: boolean; slackInvites: boolean }> {
+    const defaults = { slackMentions: true, slackInvites: true };
+
+    if (!workspaceId) return defaults;
+
+    // Find the user by GitHub username
+    const user = await this.db.user.findFirst({
+      where: { githubUsername },
+    });
+
+    if (!user) return defaults;
+
+    // Find their workspace membership
+    const membership = await this.db.workspaceMembership.findUnique({
+      where: {
+        userId_slackWorkspaceId: {
+          userId: user.id,
+          slackWorkspaceId: workspaceId,
+        },
+      },
+      select: {
+        slackMentions: true,
+        slackInvites: true,
+      },
+    });
+
+    if (!membership) return defaults;
+
+    return {
+      slackMentions: membership.slackMentions,
+      slackInvites: membership.slackInvites,
+    };
+  }
+
   // ========== GitHub -> Slack ==========
 
   async handlePrOpened(
@@ -98,19 +140,31 @@ export class IntegrationService {
     );
 
     try {
-      const authorSlackId = await this.resolveGitHubUserToSlack(
+      // Check if the author has opted out of channel invites
+      const authorPrefs = await this.getUserPreferences(
         pr.user.login,
-        repository.owner.login,
-        repository.name,
-        installation?.id,
-        teamId,
         workspaceId,
       );
-      if (authorSlackId) {
-        await this.slackService.inviteToChannel(
-          channelId,
-          [authorSlackId],
+
+      if (authorPrefs.slackInvites) {
+        const authorSlackId = await this.resolveGitHubUserToSlack(
+          pr.user.login,
+          repository.owner.login,
+          repository.name,
+          installation?.id,
           teamId,
+          workspaceId,
+        );
+        if (authorSlackId) {
+          await this.slackService.inviteToChannel(
+            channelId,
+            [authorSlackId],
+            teamId,
+          );
+        }
+      } else {
+        this.logger.debug(
+          `Skipping channel invite for PR author ${pr.user.login} (opted out)`,
         );
       }
     } catch (error) {
@@ -235,19 +289,31 @@ export class IntegrationService {
       );
 
       try {
-        const authorSlackId = await this.resolveGitHubUserToSlack(
+        // Check if the author has opted out of channel invites
+        const authorPrefs = await this.getUserPreferences(
           pr.user.login,
-          repository.owner.login,
-          repository.name,
-          installation?.id,
-          teamId,
           workspaceId,
         );
-        if (authorSlackId) {
-          await this.slackService.inviteToChannel(
-            channelId,
-            [authorSlackId],
+
+        if (authorPrefs.slackInvites) {
+          const authorSlackId = await this.resolveGitHubUserToSlack(
+            pr.user.login,
+            repository.owner.login,
+            repository.name,
+            installation?.id,
             teamId,
+            workspaceId,
+          );
+          if (authorSlackId) {
+            await this.slackService.inviteToChannel(
+              channelId,
+              [authorSlackId],
+              teamId,
+            );
+          }
+        } else {
+          this.logger.debug(
+            `Skipping channel invite for PR author ${pr.user.login} (opted out)`,
           );
         }
       } catch (error) {
@@ -386,9 +452,19 @@ export class IntegrationService {
 
     const slackUserIdsToInvite: string[] = [];
     let explicitReviewerSlackId: string | null = null;
+    let explicitReviewerPrefs: {
+      slackMentions: boolean;
+      slackInvites: boolean;
+    } | null = null;
 
     try {
       if (event.requested_reviewer) {
+        // Check reviewer's preferences
+        explicitReviewerPrefs = await this.getUserPreferences(
+          event.requested_reviewer.login,
+          workspaceId,
+        );
+
         const slackId = await this.resolveGitHubUserToSlack(
           event.requested_reviewer.login,
           repository.owner.login,
@@ -398,8 +474,15 @@ export class IntegrationService {
           workspaceId,
         );
         if (slackId) {
-          slackUserIdsToInvite.push(slackId);
           explicitReviewerSlackId = slackId;
+          // Only add to invite list if user hasn't opted out
+          if (explicitReviewerPrefs.slackInvites) {
+            slackUserIdsToInvite.push(slackId);
+          } else {
+            this.logger.debug(
+              `Skipping channel invite for reviewer ${event.requested_reviewer.login} (opted out)`,
+            );
+          }
         }
       }
 
@@ -411,6 +494,19 @@ export class IntegrationService {
         );
         for (const member of members) {
           try {
+            // Check each team member's preferences
+            const memberPrefs = await this.getUserPreferences(
+              member,
+              workspaceId,
+            );
+
+            if (!memberPrefs.slackInvites) {
+              this.logger.debug(
+                `Skipping channel invite for team member ${member} (opted out)`,
+              );
+              continue;
+            }
+
             const slackId = await this.resolveGitHubUserToSlack(
               member,
               repository.owner.login,
@@ -441,9 +537,9 @@ export class IntegrationService {
       );
     }
 
-    // Build reviewer display: only @mention explicitly tagged reviewers, not team members
+    // Build reviewer display: only @mention if user hasn't opted out of mentions
     let reviewerDisplay: string;
-    if (explicitReviewerSlackId) {
+    if (explicitReviewerSlackId && explicitReviewerPrefs?.slackMentions) {
       reviewerDisplay = `<@${explicitReviewerSlackId}>`;
     } else if (event.requested_reviewer) {
       reviewerDisplay = event.requested_reviewer.login;
@@ -1177,7 +1273,10 @@ export class IntegrationService {
 
   /**
    * Processes GitHub @mentions in text, converting them to Slack <@USERID> format.
-   * Also invites mentioned users to the channel.
+   * Also invites mentioned users to the channel (respecting user preferences).
+   *
+   * Users who have opted out of mentions will have their @username kept as plain text.
+   * Users who have opted out of invites will not be added to the channel.
    *
    * Returns the text with mentions replaced and the list of resolved Slack user IDs.
    */
@@ -1193,9 +1292,13 @@ export class IntegrationService {
     const mentions = this.extractGitHubMentions(text);
     let processedText = text;
     const mentionedSlackIds: string[] = [];
+    const slackUserIdsToInvite: string[] = [];
 
     for (const username of mentions) {
       try {
+        // Check user's preferences
+        const userPrefs = await this.getUserPreferences(username, workspaceId);
+
         const slackUserId = await this.resolveGitHubUserToSlack(
           username,
           owner,
@@ -1206,16 +1309,31 @@ export class IntegrationService {
         );
 
         if (slackUserId) {
-          // Replace @username with Slack mention format
-          const githubMentionRegex = new RegExp(
-            `(?<![a-zA-Z0-9.])@${username}(?![a-zA-Z0-9-])`,
-            "g",
-          );
-          processedText = processedText.replace(
-            githubMentionRegex,
-            `<@${slackUserId}>`,
-          );
-          mentionedSlackIds.push(slackUserId);
+          // Only convert to Slack mention if user hasn't opted out of mentions
+          if (userPrefs.slackMentions) {
+            const githubMentionRegex = new RegExp(
+              `(?<![a-zA-Z0-9.])@${username}(?![a-zA-Z0-9-])`,
+              "g",
+            );
+            processedText = processedText.replace(
+              githubMentionRegex,
+              `<@${slackUserId}>`,
+            );
+            mentionedSlackIds.push(slackUserId);
+          } else {
+            this.logger.debug(
+              `Keeping @${username} as plain text (user opted out of mentions)`,
+            );
+          }
+
+          // Only add to invite list if user hasn't opted out of invites
+          if (userPrefs.slackInvites) {
+            slackUserIdsToInvite.push(slackUserId);
+          } else {
+            this.logger.debug(
+              `Skipping channel invite for @${username} (user opted out of invites)`,
+            );
+          }
         }
       } catch (error) {
         this.logger.warn(
@@ -1224,12 +1342,12 @@ export class IntegrationService {
       }
     }
 
-    // Invite mentioned users to the channel
-    if (mentionedSlackIds.length > 0) {
+    // Invite mentioned users to the channel (only those who haven't opted out)
+    if (slackUserIdsToInvite.length > 0) {
       try {
         await this.slackService.inviteToChannel(
           channelId,
-          mentionedSlackIds,
+          slackUserIdsToInvite,
           teamId,
         );
       } catch (error) {

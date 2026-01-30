@@ -24,6 +24,12 @@ interface GitHubUser {
   avatar_url: string;
 }
 
+interface GitHubEmail {
+  email: string;
+  primary: boolean;
+  verified: boolean;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -354,7 +360,32 @@ export class AuthService {
       throw new UnauthorizedException("Failed to fetch GitHub user");
     }
 
-    return response.json();
+    const user: GitHubUser = await response.json();
+
+    // If no public email, fetch from /user/emails to get primary verified email
+    if (!user.email) {
+      user.email = await this.fetchPrimaryEmail(accessToken);
+    }
+
+    return user;
+  }
+
+  private async fetchPrimaryEmail(accessToken: string): Promise<string | null> {
+    try {
+      const response = await fetch("https://api.github.com/user/emails", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const emails: GitHubEmail[] = await response.json();
+      const primary = emails.find((e) => e.primary && e.verified);
+      return primary?.email ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private cleanupStates(): void {

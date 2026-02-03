@@ -15,6 +15,7 @@ const messageEventSchema = z.object({
   text: z.string(),
   ts: z.string(),
   bot_id: z.string().optional(),
+  app_id: z.string().optional(), // Present when message was posted by an app
   subtype: z.string().optional(),
   thread_ts: z.string().optional(),
 });

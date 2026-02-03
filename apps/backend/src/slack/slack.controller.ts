@@ -10,12 +10,16 @@ import {
 import { SlackSignatureGuard } from "../common/guards";
 import { IntegrationService } from "../integration/integration.service";
 import { slackEventSchema } from "./schemas/event.schema";
+import { SlackService } from "./slack.service";
 
 @Controller("api/webhooks/slack")
 export class SlackController {
   private readonly logger = new Logger(SlackController.name);
 
-  constructor(private readonly integrationService: IntegrationService) {}
+  constructor(
+    private readonly integrationService: IntegrationService,
+    private readonly slackService: SlackService,
+  ) {}
 
   @Post("events")
   @HttpCode(HttpStatus.OK)
@@ -45,6 +49,14 @@ export class SlackController {
       if (messageEvent.bot_id || messageEvent.app_id || messageEvent.subtype) {
         this.logger.debug(
           `Ignoring message: bot_id=${messageEvent.bot_id}, app_id=${messageEvent.app_id}, subtype=${messageEvent.subtype}`,
+        );
+        return { ok: true, ignored: true };
+      }
+
+      // Check if this is a message we posted (prevents echo loops)
+      if (this.slackService.isOwnMessage(messageEvent.channel, messageEvent.ts)) {
+        this.logger.debug(
+          `Ignoring own message: channel=${messageEvent.channel}, ts=${messageEvent.ts}`,
         );
         return { ok: true, ignored: true };
       }

@@ -3,6 +3,7 @@ import { Route as rootRoute } from "./__root";
 import { ProtectedRoute } from "@/components/protected-route";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { MembersManagement } from "@/components/members-management";
+import { OrgMappingsManagement } from "@/components/org-mappings-management";
 import { UserPreferences } from "@/components/user-preferences";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -15,11 +16,20 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { GitBranch, LogOut, Building2, CheckCircle, AlertCircle, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
 
 type DashboardSearch = {
   invited?: string;
   invite_error?: string;
+  workspace_setup?: "success" | "error";
+  workspace_name?: string;
+  workspace_id?: string;
+  error?: string;
+  // GitHub setup params
+  github_linked?: "success";
+  github_setup_error?: string;
+  github_setup?: string; // installation_id for pre-selecting in wizard
 };
 
 export const Route = createRoute({
@@ -30,32 +40,94 @@ export const Route = createRoute({
     invited: typeof search.invited === "string" ? search.invited : undefined,
     invite_error:
       typeof search.invite_error === "string" ? search.invite_error : undefined,
+    workspace_setup: search.workspace_setup as "success" | "error" | undefined,
+    workspace_name: search.workspace_name as string | undefined,
+    workspace_id: search.workspace_id as string | undefined,
+    error: search.error as string | undefined,
+    github_linked: search.github_linked as "success" | undefined,
+    github_setup_error: search.github_setup_error as string | undefined,
+    github_setup: search.github_setup as string | undefined,
   }),
 });
 
 function DashboardPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requireWorkspace>
       <DashboardContent />
     </ProtectedRoute>
   );
 }
 
 function DashboardContent() {
-  const { user, isWorkspaceAdmin, currentWorkspace, logout } = useAuth();
-  const { invited, invite_error } = useSearch({ from: "/dashboard" });
+  const { user, isWorkspaceAdmin, currentWorkspace, logout, refetch } = useAuth();
+  const {
+    invited,
+    invite_error,
+    workspace_setup,
+    workspace_name,
+    error,
+    github_linked,
+    github_setup_error,
+  } = useSearch({ from: "/dashboard" });
   const [showInviteBanner, setShowInviteBanner] = useState(!!invited);
   const [showErrorBanner, setShowErrorBanner] = useState(!!invite_error);
+  const [showGitHubLinkedBanner, setShowGitHubLinkedBanner] = useState(
+    github_linked === "success",
+  );
+  const [showGitHubErrorBanner, setShowGitHubErrorBanner] = useState(
+    !!github_setup_error,
+  );
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Parse OAuth result from URL params
+  const oauthResult = useMemo(() => {
+    if (workspace_setup === "success") {
+      return { success: true, workspaceName: workspace_name };
+    }
+    if (workspace_setup === "error") {
+      return { success: false, error: error ?? "An unknown error occurred" };
+    }
+    return null;
+  }, [workspace_setup, workspace_name, error]);
+
+  // Auto-open wizard if returning from OAuth
+  useEffect(() => {
+    if (oauthResult) {
+      setWizardOpen(true);
+    }
+  }, [oauthResult]);
+
+  // Refetch on github_linked success to update org mappings list
+  useEffect(() => {
+    if (github_linked === "success") {
+      refetch();
+    }
+  }, [github_linked, refetch]);
+
+  // Handle wizard close - refetch auth and clear URL params
+  const handleWizardClose = async (open: boolean) => {
+    setWizardOpen(open);
+    if (!open && oauthResult?.success) {
+      await refetch();
+    }
+  };
 
   // Clear URL params after showing banner
   useEffect(() => {
-    if (invited || invite_error) {
+    if (invited || invite_error || workspace_setup || github_linked || github_setup_error) {
       const url = new URL(window.location.href);
       url.searchParams.delete("invited");
       url.searchParams.delete("invite_error");
+      url.searchParams.delete("workspace_setup");
+      url.searchParams.delete("workspace_name");
+      url.searchParams.delete("workspace_id");
+      url.searchParams.delete("error");
+      url.searchParams.delete("github_linked");
+      url.searchParams.delete("github_setup_error");
+      url.searchParams.delete("github_setup");
       window.history.replaceState({}, "", url.pathname);
     }
-  }, [invited, invite_error]);
+  }, [invited, invite_error, workspace_setup, github_linked, github_setup_error]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -110,6 +182,44 @@ function DashboardContent() {
                 size="icon"
                 className="h-6 w-6"
                 onClick={() => setShowErrorBanner(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showGitHubLinkedBanner && (
+          <Alert className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <AlertTitle>GitHub Organization Linked</AlertTitle>
+            <AlertDescription className="flex items-center justify-between">
+              <span>
+                The GitHub organization has been linked to your workspace.
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowGitHubLinkedBanner(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {showGitHubErrorBanner && github_setup_error && (
+          <Alert className="mb-6" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>GitHub Setup Error</AlertTitle>
+            <AlertDescription className="flex items-center justify-between">
+              <span>{github_setup_error}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setShowGitHubErrorBanner(false)}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -178,9 +288,17 @@ function DashboardContent() {
 
           {currentWorkspace && <UserPreferences />}
 
+          {isWorkspaceAdmin && <OrgMappingsManagement />}
+
           {isWorkspaceAdmin && <MembersManagement />}
         </div>
       </main>
+
+      <WorkspaceSetupWizard
+        open={wizardOpen}
+        onOpenChange={handleWizardClose}
+        oauthResult={oauthResult}
+      />
     </div>
   );
 }

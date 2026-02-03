@@ -209,7 +209,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "auth", "github"]
             },
-            "description": "Redirects to GitHub OAuth consent screen. After authorization, redirects back to /api/auth/github/callback which sets an auth_token cookie and redirects to /dashboard."
+            "description": "Redirects to GitHub OAuth consent screen. After authorization, redirects back to /api/auth/github/callback which sets an auth_token cookie and redirects to /dashboard. Note: When GitHub App has 'Request user authorization during installation' enabled, the app install flow also redirects here with installation_id and setup_action=install params, handling OrgMapping creation or wizard redirect based on encoded state."
           }
         },
         {
@@ -256,6 +256,24 @@
       ]
     },
     {
+      "name": "GitHub",
+      "description": "GitHub API endpoints for user-facing operations.",
+      "item": [
+        {
+          "name": "List Installations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/github/installations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "github", "installations"]
+            },
+            "description": "Lists GitHub App installations accessible to the authenticated user. Returns installations of our app only, with isLinked indicating if already connected to a Slack workspace. Requires authentication."
+          }
+        }
+      ]
+    },
+    {
       "name": "OAuth",
       "item": [
         {
@@ -263,7 +281,7 @@
           "request": {
             "method": "GET",
             "url": {
-              "raw": "{{baseUrl}}/api/oauth/slack/install?installation_id=12345",
+              "raw": "{{baseUrl}}/api/oauth/slack/install?installation_id=12345&frontend_redirect=https://example.com/no-workspace",
               "host": ["{{baseUrl}}"],
               "path": ["api", "oauth", "slack", "install"],
               "query": [
@@ -271,10 +289,15 @@
                   "key": "installation_id",
                   "value": "12345",
                   "description": "GitHub App installation ID to link"
+                },
+                {
+                  "key": "frontend_redirect",
+                  "value": "https://example.com/no-workspace",
+                  "description": "Optional frontend URL to redirect to after OAuth. If provided, success/error params will be added to the redirect URL."
                 }
               ]
             },
-            "description": "Redirects to Slack OAuth consent screen. The installation_id is encoded in the OAuth state parameter. If the user is authenticated, they will be automatically added as a workspace admin upon completion."
+            "description": "Redirects to Slack OAuth consent screen. The installation_id is encoded in the OAuth state parameter. If the user is authenticated, they will be automatically added as a workspace admin upon completion. If frontend_redirect is provided, the callback will redirect to that URL with workspace_setup=success|error query params instead of returning JSON."
           }
         },
         {
@@ -377,6 +400,42 @@
               "path": ["api", "admin", "org-mappings"]
             },
             "description": "Lists GitHub installation → Slack workspace mappings for the current workspace."
+          }
+        },
+        {
+          "name": "Create Org Mapping",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/org-mappings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "org-mappings"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"installationId\": 12345\n}"
+            },
+            "description": "Links a GitHub App installation to the current workspace. The installation must not already be linked to another workspace."
+          }
+        },
+        {
+          "name": "Delete Org Mapping",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/org-mappings/:installationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "org-mappings", ":installationId"],
+              "variable": [
+                {
+                  "key": "installationId",
+                  "value": "12345",
+                  "description": "GitHub App installation ID to unlink"
+                }
+              ]
+            },
+            "description": "Unlinks a GitHub App installation from the current workspace."
           }
         },
         {

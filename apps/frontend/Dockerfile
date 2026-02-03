@@ -16,6 +16,10 @@ RUN pnpm install --frozen-lockfile
 COPY apps/frontend/ apps/frontend/
 COPY packages/shared/ packages/shared/
 
+# Build args for Vite (baked into bundle at build time)
+ARG VITE_GITHUB_APP_URL
+ENV VITE_GITHUB_APP_URL=$VITE_GITHUB_APP_URL
+
 # Build
 RUN pnpm --filter frontend build
 

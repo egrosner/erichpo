@@ -52,6 +52,64 @@ export class AdminService {
     });
   }
 
+  async createOrgMapping(workspaceId: number, installationId: number) {
+    // Check if this installation is already linked to any workspace
+    const existing = await this.db.orgMapping.findUnique({
+      where: { githubInstallationId: installationId },
+      include: { slackWorkspace: { select: { teamName: true } } },
+    });
+
+    if (existing) {
+      throw new BadRequestException(
+        `This GitHub installation is already linked to workspace "${existing.slackWorkspace.teamName}"`,
+      );
+    }
+
+    // Create the mapping
+    const mapping = await this.db.orgMapping.create({
+      data: {
+        githubInstallationId: installationId,
+        slackWorkspaceId: workspaceId,
+      },
+      include: {
+        slackWorkspace: {
+          select: { teamId: true, teamName: true },
+        },
+      },
+    });
+
+    this.logger.log(
+      `Linked GitHub installation ${installationId} to workspace ${workspaceId}`,
+    );
+
+    return mapping;
+  }
+
+  async deleteOrgMapping(workspaceId: number, installationId: number) {
+    const mapping = await this.db.orgMapping.findFirst({
+      where: {
+        githubInstallationId: installationId,
+        slackWorkspaceId: workspaceId,
+      },
+    });
+
+    if (!mapping) {
+      throw new NotFoundException(
+        "This GitHub installation is not linked to your workspace",
+      );
+    }
+
+    await this.db.orgMapping.delete({
+      where: { id: mapping.id },
+    });
+
+    this.logger.log(
+      `Unlinked GitHub installation ${installationId} from workspace ${workspaceId}`,
+    );
+
+    return { success: true };
+  }
+
   async listSlackUsers(teamId: string) {
     return this.slackService.listUsers(teamId);
   }

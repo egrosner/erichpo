@@ -29,8 +29,10 @@ pnpm dev
 
 1. Go to **GitHub Settings > Developer settings > GitHub Apps > New GitHub App**
 2. Fill in the details:
-   - **App name**: Choose a name (e.g. `pr-slack-bridge`)
+   - **App name**: Choose a name (e.g. `erichpo`)
    - **Homepage URL**: Your app URL or repository URL
+   - **Callback URL**: `https://erichpo.erichgrosner.com/api/auth/github/callback`
+   - **Check "Request user authorization (OAuth) during installation"** — this allows the app to authenticate users when they install it
    - **Webhook URL**: `https://erichpo.erichgrosner.com/api/webhooks/github`
    - **Webhook secret**: Generate a secret (e.g. `openssl rand -hex 32`) and save it for `.env`
 3. Set **Permissions**:
@@ -92,6 +94,8 @@ pnpm dev
 
 ### 3. Configure Environment
 
+#### Backend
+
 ```bash
 cd apps/backend
 cp .env.example .env
@@ -120,6 +124,23 @@ SLACK_BOT_TOKEN=xoxb-your-bot-token
 DATABASE_URL=file:./data/pr-channels.db
 SLACK_CHANNEL_PREFIX=_pr_
 ```
+
+#### Frontend
+
+```bash
+cd apps/frontend
+cp .env.example .env
+```
+
+Fill in your `.env`:
+
+```bash
+# GitHub App installation URL
+# Replace 'erichpo' with your GitHub App's slug/name
+VITE_GITHUB_APP_URL=https://github.com/apps/erichpo/installations/new
+```
+
+This URL is used in the workspace setup wizard to allow users to install the GitHub App directly from the UI.
 
 ### 4. Local Development with Webhooks
 
@@ -169,3 +190,22 @@ erichpo/
 | `pnpm --filter backend test:e2e` | Run e2e tests |
 | `pnpm --filter backend build` | Build for production |
 | `pnpm --filter backend check` | Lint & format with Biome |
+
+## Docker
+
+Run with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+The frontend `VITE_GITHUB_APP_URL` is configured as a build arg in `docker-compose.yml`. Update it if your GitHub App name differs:
+
+```yaml
+frontend:
+  build:
+    args:
+      VITE_GITHUB_APP_URL: https://github.com/apps/your-app-name/installations/new
+```
+
+Caddy runs on port 4847 and routes `/api/*` to backend, everything else to frontend.

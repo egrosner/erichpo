@@ -47,6 +47,34 @@ export class AdminController {
     );
   }
 
+  @Post("org-mappings")
+  async createOrgMapping(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() body: { installationId: number },
+  ) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.adminService.createOrgMapping(
+      user.currentWorkspace.workspaceId,
+      body.installationId,
+    );
+  }
+
+  @Delete("org-mappings/:installationId")
+  async deleteOrgMapping(
+    @GetCurrentUser() user: CurrentUser,
+    @Param("installationId", ParseIntPipe) installationId: number,
+  ) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.adminService.deleteOrgMapping(
+      user.currentWorkspace.workspaceId,
+      installationId,
+    );
+  }
+
   @Get("slack-users")
   async listSlackUsers(@GetCurrentUser() user: CurrentUser) {
     if (!user.currentWorkspace) {

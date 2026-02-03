@@ -121,6 +121,51 @@ export class IntegrationService {
     };
   }
 
+  /**
+   * Looks up a user's Slack access token from their GitHub username.
+   * Used for posting Slack messages as the user (impersonation).
+   * Returns null if user not found or user has no stored Slack token.
+   */
+  private async getSlackTokenForGitHubUser(
+    githubUsername: string,
+    workspaceId?: number,
+  ): Promise<{ token: string; slackUserId: string } | null> {
+    if (!workspaceId) return null;
+
+    // Find the User record by GitHub username
+    const user = await this.db.user.findFirst({
+      where: { githubUsername },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    // Find their workspace membership with Slack token
+    const membership = await this.db.workspaceMembership.findUnique({
+      where: {
+        userId_slackWorkspaceId: {
+          userId: user.id,
+          slackWorkspaceId: workspaceId,
+        },
+      },
+      select: {
+        slackAccessToken: true,
+        slackUserId: true,
+      },
+    });
+
+    if (!membership?.slackAccessToken || !membership?.slackUserId) {
+      return null;
+    }
+
+    return {
+      token: membership.slackAccessToken,
+      slackUserId: membership.slackUserId,
+    };
+  }
+
   // ========== GitHub -> Slack ==========
 
   async handlePrOpened(
@@ -620,6 +665,12 @@ export class IntegrationService {
     // Ignore comments from our own bot to prevent echo loops
     if (sender.login.endsWith("[bot]")) return;
 
+    // Ignore comments that were synced from Slack (prevents echo loops)
+    if (comment.body.includes("<!-- synced-from-slack -->")) {
+      this.logger.debug(`Ignoring comment synced from Slack: ${comment.id}`);
+      return;
+    }
+
     const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
@@ -642,12 +693,46 @@ export class IntegrationService {
       workspaceId,
     );
 
-    await this.slackService.postMessage(
-      mapping.slackChannelId,
-      `Comment from ${sender.login}`,
-      this.buildCommentBlocks(processedText, sender.login, comment.html_url),
-      teamId,
+    // Try to post as the user if they have connected their Slack account
+    const slackAuth = await this.getSlackTokenForGitHubUser(
+      sender.login,
+      workspaceId,
     );
+
+    if (slackAuth) {
+      // Post as the user (impersonation)
+      await this.slackService.postMessageAsUser(
+        mapping.slackChannelId,
+        processedText,
+        [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `${processedText}`,
+            },
+            accessory: {
+              type: "button",
+              text: { type: "plain_text", text: "View" },
+              url: comment.html_url,
+              action_id: "view_comment",
+            },
+          },
+        ],
+        slackAuth.token,
+      );
+      this.logger.log(
+        `Posted comment from ${sender.login} as Slack user ${slackAuth.slackUserId}`,
+      );
+    } else {
+      // Fallback: post as bot with attribution
+      await this.slackService.postMessage(
+        mapping.slackChannelId,
+        `Comment from ${sender.login}`,
+        this.buildCommentBlocks(processedText, sender.login, comment.html_url),
+        teamId,
+      );
+    }
 
     await this.recordDelivery(deliveryId, "github");
   }
@@ -706,26 +791,50 @@ export class IntegrationService {
       processedBody = processedText;
     }
 
-    await this.slackService.postMessage(
-      mapping.slackChannelId,
-      `${review.user.login} ${stateText}`,
-      [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `${stateEmoji} *${review.user.login}* ${stateText}${processedBody ? `\n\n${processedBody}` : ""}`,
-          },
-          accessory: {
-            type: "button",
-            text: { type: "plain_text", text: "View Review" },
-            url: review.html_url,
-            action_id: "view_review",
-          },
-        },
-      ],
-      teamId,
+    // Try to post as the user if they have connected their Slack account
+    const slackAuth = await this.getSlackTokenForGitHubUser(
+      review.user.login,
+      workspaceId,
     );
+
+    const blocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: slackAuth
+            ? `${stateEmoji} ${stateText}${processedBody ? `\n\n${processedBody}` : ""}`
+            : `${stateEmoji} *${review.user.login}* ${stateText}${processedBody ? `\n\n${processedBody}` : ""}`,
+        },
+        accessory: {
+          type: "button",
+          text: { type: "plain_text", text: "View Review" },
+          url: review.html_url,
+          action_id: "view_review",
+        },
+      },
+    ];
+
+    if (slackAuth) {
+      // Post as the user (impersonation)
+      await this.slackService.postMessageAsUser(
+        mapping.slackChannelId,
+        `${stateText}`,
+        blocks,
+        slackAuth.token,
+      );
+      this.logger.log(
+        `Posted review from ${review.user.login} as Slack user ${slackAuth.slackUserId}`,
+      );
+    } else {
+      // Fallback: post as bot with attribution
+      await this.slackService.postMessage(
+        mapping.slackChannelId,
+        `${review.user.login} ${stateText}`,
+        blocks,
+        teamId,
+      );
+    }
 
     await this.recordDelivery(deliveryId, "github");
   }
@@ -763,12 +872,21 @@ export class IntegrationService {
       workspaceId,
     );
 
+    // Try to post as the user if they have connected their Slack account
+    const slackAuth = await this.getSlackTokenForGitHubUser(
+      comment.user.login,
+      workspaceId,
+    );
+
+    // Build blocks differently depending on impersonation
     const blocks: SlackBlock[] = [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${processedText}`,
+          text: slackAuth
+            ? `:memo: Commented on \`${comment.path}\`\n\n${processedText}`
+            : `:memo: *${comment.user.login}* commented on \`${comment.path}\`\n\n${processedText}`,
         },
         accessory: {
           type: "button",
@@ -789,25 +907,53 @@ export class IntegrationService {
       });
 
       if (parentMapping) {
-        await this.slackService.postMessage(
-          mapping.slackChannelId,
-          `Reply from ${comment.user.login}`,
-          blocks,
-          teamId,
-          parentMapping.slackMessageTs,
-        );
+        if (slackAuth) {
+          await this.slackService.postMessageAsUser(
+            mapping.slackChannelId,
+            `Reply on ${comment.path}`,
+            blocks,
+            slackAuth.token,
+            parentMapping.slackMessageTs,
+          );
+          this.logger.log(
+            `Posted review comment reply from ${comment.user.login} as Slack user ${slackAuth.slackUserId}`,
+          );
+        } else {
+          await this.slackService.postMessage(
+            mapping.slackChannelId,
+            `Reply from ${comment.user.login}`,
+            blocks,
+            teamId,
+            parentMapping.slackMessageTs,
+          );
+        }
         await this.recordDelivery(deliveryId, "github");
         return;
       }
     }
 
     // Top-level review comment — post as new message and store mapping
-    const { ts } = await this.slackService.postMessage(
-      mapping.slackChannelId,
-      `Review comment from ${comment.user.login}`,
-      blocks,
-      teamId,
-    );
+    let ts: string;
+    if (slackAuth) {
+      const result = await this.slackService.postMessageAsUser(
+        mapping.slackChannelId,
+        `Review comment on ${comment.path}`,
+        blocks,
+        slackAuth.token,
+      );
+      ts = result.ts;
+      this.logger.log(
+        `Posted review comment from ${comment.user.login} as Slack user ${slackAuth.slackUserId}`,
+      );
+    } else {
+      const result = await this.slackService.postMessage(
+        mapping.slackChannelId,
+        `Review comment from ${comment.user.login}`,
+        blocks,
+        teamId,
+      );
+      ts = result.ts;
+    }
 
     await this.db.slackMessageMapping.create({
       data: {
@@ -1047,9 +1193,11 @@ export class IntegrationService {
 
     // If user has a token, post as them directly; otherwise use bot with attribution
     const useImpersonation = !!githubAuth?.token;
+    // Add marker to identify comments synced from Slack (prevents echo loops)
+    const slackSyncMarker = "<!-- synced-from-slack -->";
     const commentBody = useImpersonation
-      ? text
-      : `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
+      ? `${text}\n\n${slackSyncMarker}`
+      : `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}\n\n${slackSyncMarker}`;
 
     // If this is a thread reply, check if the parent maps to a review comment
     if (threadTs) {

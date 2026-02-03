@@ -40,8 +40,20 @@ export class SlackController {
     if (event.type === "event_callback") {
       const messageEvent = event.event;
 
-      // Ignore bot messages and message subtypes (edits, deletes, etc.)
-      if (messageEvent.bot_id || messageEvent.subtype) {
+      // Ignore bot messages, app-posted messages, and message subtypes (edits, deletes, etc.)
+      // app_id is present when the message was posted by an app (including via user OAuth)
+      if (messageEvent.bot_id || messageEvent.app_id || messageEvent.subtype) {
+        this.logger.debug(
+          `Ignoring message: bot_id=${messageEvent.bot_id}, app_id=${messageEvent.app_id}, subtype=${messageEvent.subtype}`,
+        );
+        return { ok: true, ignored: true };
+      }
+
+      // Check if this message was posted by our GitHub sync (has our metadata tag)
+      if (messageEvent.metadata?.event_type === "github_sync") {
+        this.logger.debug(
+          `Ignoring github_sync message: channel=${messageEvent.channel}, ts=${messageEvent.ts}`,
+        );
         return { ok: true, ignored: true };
       }
 

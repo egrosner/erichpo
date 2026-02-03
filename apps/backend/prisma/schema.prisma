@@ -208,9 +208,14 @@ model WorkspaceMembership {
   slackMentions Boolean @default(true) // Allow @mentions in Slack
   slackInvites  Boolean @default(true) // Allow channel invitations
 
+  // Slack user connection for impersonation
+  slackUserId      String? // Slack user ID for this workspace
+  slackAccessToken String? // User's OAuth token (xoxp-) for posting as them
+
   @@unique([userId, slackWorkspaceId])
   @@index([userId])
   @@index([slackWorkspaceId])
+  @@index([slackUserId, slackWorkspaceId])
   @@map("workspace_memberships")
 }
 

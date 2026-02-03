@@ -122,10 +122,49 @@ export class SlackService implements OnModuleInit {
       thread_ts: threadTs,
       unfurl_links: false,
       unfurl_media: false,
+      // Tag message as from GitHub sync to prevent echo loops
+      metadata: {
+        event_type: "github_sync",
+        event_payload: {},
+      },
     });
 
     if (!result.ts) {
       throw new Error("Failed to post message to Slack");
+    }
+
+    return { ts: result.ts };
+  }
+
+  /**
+   * Post a message as a specific user using their OAuth token.
+   * Falls back to bot message if userAccessToken is not provided.
+   */
+  async postMessageAsUser(
+    channelId: string,
+    text: string,
+    blocks: SlackBlock[] | undefined,
+    userAccessToken: string,
+    threadTs?: string,
+  ): Promise<{ ts: string }> {
+    const userClient = new WebClient(userAccessToken);
+
+    const result = await userClient.chat.postMessage({
+      channel: channelId,
+      text,
+      blocks,
+      thread_ts: threadTs,
+      unfurl_links: false,
+      unfurl_media: false,
+      // Tag message as from GitHub sync to prevent echo loops
+      metadata: {
+        event_type: "github_sync",
+        event_payload: {},
+      },
+    });
+
+    if (!result.ts) {
+      throw new Error("Failed to post message as user to Slack");
     }
 
     return { ts: result.ts };

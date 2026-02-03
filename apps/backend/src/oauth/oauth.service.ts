@@ -11,8 +11,25 @@ interface SlackOAuthResponse {
   bot_user_id: string;
   app_id: string;
   team: { id: string; name: string };
-  authed_user: { id: string };
+  authed_user: { id: string; access_token?: string; scope?: string };
   error?: string;
+}
+
+interface SlackUserOAuthResponse {
+  ok: boolean;
+  access_token: string;
+  token_type: string;
+  scope: string;
+  app_id: string;
+  team: { id: string; name: string };
+  authed_user: { id: string; access_token: string; scope: string };
+  error?: string;
+}
+
+interface UserOAuthState {
+  userId: number;
+  workspaceId: number;
+  createdAt: number;
 }
 
 @Injectable()
@@ -22,6 +39,7 @@ export class OAuthService {
     string,
     { installationId: number; userId?: number; createdAt: number }
   >();
+  private readonly pendingUserStates = new Map<string, UserOAuthState>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -198,5 +216,157 @@ export class OAuthService {
       installationId,
       workspaceId: workspace.id,
     };
+  }
+
+  // ========== User OAuth (for Slack impersonation) ==========
+
+  getUserConnectUrl(userId: number, workspaceId: number): string {
+    const clientId = this.configService.get<string>("slack.clientId");
+    if (!clientId) {
+      throw new Error("SLACK_CLIENT_ID not configured");
+    }
+
+    const redirectUrl = this.configService.get<string>(
+      "slack.userOauthRedirectUrl",
+    );
+
+    // User token scopes for posting as the user
+    const userScopes = "chat:write";
+
+    const stateKey = crypto.randomUUID();
+    this.pendingUserStates.set(stateKey, {
+      userId,
+      workspaceId,
+      createdAt: Date.now(),
+    });
+
+    // Clean up states older than 10 minutes
+    for (const [key, val] of this.pendingUserStates) {
+      if (Date.now() - val.createdAt > 10 * 60 * 1000) {
+        this.pendingUserStates.delete(key);
+      }
+    }
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      user_scope: userScopes,
+      state: stateKey,
+    });
+
+    if (redirectUrl) {
+      params.set("redirect_uri", redirectUrl);
+    }
+
+    const url = `https://slack.com/oauth/v2/authorize?${params.toString()}`;
+    this.logger.log(
+      `User OAuth connect redirect for user ${userId}, workspace ${workspaceId}, state=${stateKey}`,
+    );
+    return url;
+  }
+
+  getUserStateData(stateKey: string): UserOAuthState | null {
+    const pending = this.pendingUserStates.get(stateKey);
+    if (!pending) return null;
+    this.pendingUserStates.delete(stateKey);
+    return pending;
+  }
+
+  async handleUserCallback(
+    code: string,
+    userId: number,
+    workspaceId: number,
+  ): Promise<{ slackUserId: string; teamName: string }> {
+    const clientId = this.configService.get<string>("slack.clientId");
+    const clientSecret = this.configService.get<string>("slack.clientSecret");
+    const redirectUrl = this.configService.get<string>(
+      "slack.userOauthRedirectUrl",
+    );
+
+    if (!clientId || !clientSecret) {
+      throw new Error("Slack OAuth credentials not configured");
+    }
+
+    // Exchange code for token
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code,
+    });
+
+    if (redirectUrl) {
+      params.set("redirect_uri", redirectUrl);
+    }
+
+    const response = await fetch("https://slack.com/api/oauth.v2.access", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    });
+
+    const data = (await response.json()) as SlackUserOAuthResponse;
+
+    if (!data.ok) {
+      throw new Error(`Slack OAuth error: ${data.error}`);
+    }
+
+    // Verify the workspace matches
+    const workspace = await this.db.slackWorkspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new Error("Workspace not found");
+    }
+
+    if (workspace.teamId !== data.team.id) {
+      throw new Error(
+        `Slack workspace mismatch: expected ${workspace.teamId}, got ${data.team.id}. Please connect to the correct Slack workspace.`,
+      );
+    }
+
+    // Store the user's Slack token in their workspace membership
+    await this.db.workspaceMembership.update({
+      where: {
+        userId_slackWorkspaceId: {
+          userId,
+          slackWorkspaceId: workspaceId,
+        },
+      },
+      data: {
+        slackUserId: data.authed_user.id,
+        slackAccessToken: data.authed_user.access_token,
+      },
+    });
+
+    this.logger.log(
+      `User ${userId} connected Slack account ${data.authed_user.id} in workspace ${workspaceId}`,
+    );
+
+    return {
+      slackUserId: data.authed_user.id,
+      teamName: data.team.name,
+    };
+  }
+
+  async disconnectSlackUser(
+    userId: number,
+    workspaceId: number,
+  ): Promise<void> {
+    await this.db.workspaceMembership.update({
+      where: {
+        userId_slackWorkspaceId: {
+          userId,
+          slackWorkspaceId: workspaceId,
+        },
+      },
+      data: {
+        slackUserId: null,
+        slackAccessToken: null,
+      },
+    });
+
+    this.logger.log(
+      `User ${userId} disconnected Slack account from workspace ${workspaceId}`,
+    );
   }
 }

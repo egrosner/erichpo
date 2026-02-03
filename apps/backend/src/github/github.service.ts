@@ -41,6 +41,14 @@ export class GitHubService implements OnModuleInit {
     });
   }
 
+  /**
+   * Creates an Octokit client authenticated with a user's personal access token.
+   * Used for posting comments as the user (impersonation).
+   */
+  private getOctokitForUser(userAccessToken: string): Octokit {
+    return new Octokit({ auth: userAccessToken });
+  }
+
   async createPrComment(
     owner: string,
     repo: string,
@@ -59,6 +67,36 @@ export class GitHubService implements OnModuleInit {
 
     this.logger.log(
       `Created comment on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
+    );
+
+    return {
+      id: response.data.id,
+      html_url: response.data.html_url,
+    };
+  }
+
+  /**
+   * Creates a PR comment as a specific user (impersonation).
+   * Uses the user's OAuth access token instead of the GitHub App.
+   */
+  async createPrCommentAsUser(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    body: string,
+    userAccessToken: string,
+  ): Promise<{ id: number; html_url: string }> {
+    const octokit = this.getOctokitForUser(userAccessToken);
+
+    const response = await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: prNumber,
+      body,
+    });
+
+    this.logger.log(
+      `Created comment as user on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
     );
 
     return {
@@ -87,6 +125,38 @@ export class GitHubService implements OnModuleInit {
 
     this.logger.log(
       `Created review comment reply on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
+    );
+
+    return {
+      id: response.data.id,
+      html_url: response.data.html_url,
+    };
+  }
+
+  /**
+   * Creates a review comment reply as a specific user (impersonation).
+   * Uses the user's OAuth access token instead of the GitHub App.
+   */
+  async createReviewCommentReplyAsUser(
+    owner: string,
+    repo: string,
+    prNumber: number,
+    commentId: number,
+    body: string,
+    userAccessToken: string,
+  ): Promise<{ id: number; html_url: string }> {
+    const octokit = this.getOctokitForUser(userAccessToken);
+
+    const response = await octokit.rest.pulls.createReplyForReviewComment({
+      owner,
+      repo,
+      pull_number: prNumber,
+      comment_id: commentId,
+      body,
+    });
+
+    this.logger.log(
+      `Created review comment reply as user on ${owner}/${repo}#${prNumber}: ${response.data.id}`,
     );
 
     return {

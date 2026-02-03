@@ -84,6 +84,43 @@ export class IntegrationService {
     };
   }
 
+  /**
+   * Looks up a user's GitHub access token from their Slack user ID.
+   * Used for posting comments as the user (impersonation).
+   * Returns null if user mapping not found or user has no stored token.
+   */
+  private async getGitHubTokenForSlackUser(
+    slackUserId: string,
+    workspaceId?: number,
+  ): Promise<{ token: string; username: string } | null> {
+    // First find the GitHub username from the Slack user mapping
+    const userMapping = await this.db.gitHubSlackUserMapping.findFirst({
+      where: {
+        slackUserId,
+        slackWorkspaceId: workspaceId ?? null,
+      },
+    });
+
+    if (!userMapping) {
+      return null;
+    }
+
+    // Find the User record with the stored GitHub access token
+    const user = await this.db.user.findFirst({
+      where: { githubUsername: userMapping.githubUsername },
+      select: { githubAccessToken: true, githubUsername: true },
+    });
+
+    if (!user?.githubAccessToken) {
+      return null;
+    }
+
+    return {
+      token: user.githubAccessToken,
+      username: user.githubUsername,
+    };
+  }
+
   // ========== GitHub -> Slack ==========
 
   async handlePrOpened(
@@ -1001,7 +1038,18 @@ export class IntegrationService {
     }
 
     const userInfo = await this.slackService.getUserInfo(userId, teamId);
-    const commentBody = `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
+
+    // Try to get the user's GitHub token for impersonation
+    const githubAuth = await this.getGitHubTokenForSlackUser(
+      userId,
+      mapping.slackWorkspaceId ?? undefined,
+    );
+
+    // If user has a token, post as them directly; otherwise use bot with attribution
+    const useImpersonation = !!githubAuth?.token;
+    const commentBody = useImpersonation
+      ? text
+      : `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
 
     // If this is a thread reply, check if the parent maps to a review comment
     if (threadTs) {
@@ -1015,36 +1063,62 @@ export class IntegrationService {
       });
 
       if (messageMapping) {
-        await this.githubService.createReviewCommentReply(
-          messageMapping.githubRepoOwner,
-          messageMapping.githubRepoName,
-          messageMapping.githubPrNumber,
-          messageMapping.githubCommentId,
-          commentBody,
-          mapping.githubInstallationId ?? undefined,
-        );
+        if (useImpersonation) {
+          await this.githubService.createReviewCommentReplyAsUser(
+            messageMapping.githubRepoOwner,
+            messageMapping.githubRepoName,
+            messageMapping.githubPrNumber,
+            messageMapping.githubCommentId,
+            commentBody,
+            githubAuth.token,
+          );
+          this.logger.log(
+            `Synced Slack thread reply as ${githubAuth.username} to GitHub review comment #${messageMapping.githubCommentId}`,
+          );
+        } else {
+          await this.githubService.createReviewCommentReply(
+            messageMapping.githubRepoOwner,
+            messageMapping.githubRepoName,
+            messageMapping.githubPrNumber,
+            messageMapping.githubCommentId,
+            commentBody,
+            mapping.githubInstallationId ?? undefined,
+          );
+          this.logger.log(
+            `Synced Slack thread reply to GitHub review comment #${messageMapping.githubCommentId}`,
+          );
+        }
 
         await this.recordDelivery(eventId, "slack");
-        this.logger.log(
-          `Synced Slack thread reply to GitHub review comment #${messageMapping.githubCommentId}`,
-        );
         return;
       }
     }
 
-    await this.githubService.createPrComment(
-      mapping.githubRepoOwner,
-      mapping.githubRepoName,
-      mapping.githubPrNumber,
-      commentBody,
-      mapping.githubInstallationId ?? undefined,
-    );
+    if (useImpersonation) {
+      await this.githubService.createPrCommentAsUser(
+        mapping.githubRepoOwner,
+        mapping.githubRepoName,
+        mapping.githubPrNumber,
+        commentBody,
+        githubAuth.token,
+      );
+      this.logger.log(
+        `Synced Slack message as ${githubAuth.username} to GitHub PR #${mapping.githubPrNumber}`,
+      );
+    } else {
+      await this.githubService.createPrComment(
+        mapping.githubRepoOwner,
+        mapping.githubRepoName,
+        mapping.githubPrNumber,
+        commentBody,
+        mapping.githubInstallationId ?? undefined,
+      );
+      this.logger.log(
+        `Synced Slack message to GitHub PR #${mapping.githubPrNumber}`,
+      );
+    }
 
     await this.recordDelivery(eventId, "slack");
-
-    this.logger.log(
-      `Synced Slack message to GitHub PR #${mapping.githubPrNumber}`,
-    );
   }
 
   // ========== Helpers ==========

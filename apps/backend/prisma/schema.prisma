@@ -18,6 +18,7 @@ model User {
   githubUsername       String
   email                String?
   avatarUrl            String?
+  githubAccessToken    String?               // OAuth token for posting as user
   sessions             Session[]
   workspaceMemberships WorkspaceMembership[]
   usedInviteLinks      InviteLink[]          @relation("UsedInviteLinks")

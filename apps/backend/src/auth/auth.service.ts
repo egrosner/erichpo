@@ -49,7 +49,8 @@ export class AuthService {
     const redirectUrl = this.configService.get<string>(
       "github.oauthCallbackUrl",
     );
-    const scopes = ["read:user", "user:email"].join(" ");
+    // repo scope allows posting comments as the user (impersonation)
+    const scopes = ["read:user", "user:email", "repo"].join(" ");
 
     // Generate state token for CSRF protection
     const state = crypto.randomUUID();
@@ -89,19 +90,21 @@ export class AuthService {
     // Fetch GitHub user info
     const githubUser = await this.fetchGitHubUser(accessToken);
 
-    // Upsert user in database
+    // Upsert user in database (store access token for impersonation)
     const user = await this.db.user.upsert({
       where: { githubId: githubUser.id },
       update: {
         githubUsername: githubUser.login,
         email: githubUser.email,
         avatarUrl: githubUser.avatar_url,
+        githubAccessToken: accessToken,
       },
       create: {
         githubId: githubUser.id,
         githubUsername: githubUser.login,
         email: githubUser.email,
         avatarUrl: githubUser.avatar_url,
+        githubAccessToken: accessToken,
       },
     });
 

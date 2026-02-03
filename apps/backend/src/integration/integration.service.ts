@@ -665,6 +665,12 @@ export class IntegrationService {
     // Ignore comments from our own bot to prevent echo loops
     if (sender.login.endsWith("[bot]")) return;
 
+    // Ignore comments that were synced from Slack (prevents echo loops)
+    if (comment.body.includes("<!-- synced-from-slack -->")) {
+      this.logger.debug(`Ignoring comment synced from Slack: ${comment.id}`);
+      return;
+    }
+
     const { teamId, workspaceId } = await this.resolveWorkspaceForInstallation(
       installation?.id,
     );
@@ -1187,9 +1193,11 @@ export class IntegrationService {
 
     // If user has a token, post as them directly; otherwise use bot with attribution
     const useImpersonation = !!githubAuth?.token;
+    // Add marker to identify comments synced from Slack (prevents echo loops)
+    const slackSyncMarker = "<!-- synced-from-slack -->";
     const commentBody = useImpersonation
-      ? text
-      : `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}`;
+      ? `${text}\n\n${slackSyncMarker}`
+      : `**[Slack - ${userInfo.real_name || userInfo.name}]**\n\n${text}\n\n${slackSyncMarker}`;
 
     // If this is a thread reply, check if the parent maps to a review comment
     if (threadTs) {

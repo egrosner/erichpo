@@ -27,9 +27,6 @@ export class SlackService implements OnModuleInit {
   private readonly logger = new Logger(SlackService.name);
   private fallbackClient: WebClient | null = null;
   private readonly clientCache = new Map<string, WebClient>();
-  // Track message timestamps we've posted to prevent echo loops
-  // Key: "channelId:ts", expires after 60 seconds
-  private readonly postedMessages = new Map<string, number>();
 
   constructor(
     private readonly configService: ConfigService,
@@ -85,26 +82,6 @@ export class SlackService implements OnModuleInit {
     this.clientCache.delete(teamId);
   }
 
-  /** Track a message we've posted to prevent echo loops */
-  private trackPostedMessage(channelId: string, ts: string): void {
-    const key = `${channelId}:${ts}`;
-    this.postedMessages.set(key, Date.now());
-
-    // Clean up old entries (older than 60 seconds)
-    const cutoff = Date.now() - 60000;
-    for (const [k, timestamp] of this.postedMessages) {
-      if (timestamp < cutoff) {
-        this.postedMessages.delete(k);
-      }
-    }
-  }
-
-  /** Check if a message was posted by us (to prevent echo loops) */
-  isOwnMessage(channelId: string, ts: string): boolean {
-    const key = `${channelId}:${ts}`;
-    return this.postedMessages.has(key);
-  }
-
   async createChannel(
     name: string,
     teamId?: string,
@@ -156,9 +133,6 @@ export class SlackService implements OnModuleInit {
       throw new Error("Failed to post message to Slack");
     }
 
-    // Track this message to prevent echo loops
-    this.trackPostedMessage(channelId, result.ts);
-
     return { ts: result.ts };
   }
 
@@ -192,9 +166,6 @@ export class SlackService implements OnModuleInit {
     if (!result.ts) {
       throw new Error("Failed to post message as user to Slack");
     }
-
-    // Track this message to prevent echo loops
-    this.trackPostedMessage(channelId, result.ts);
 
     return { ts: result.ts };
   }

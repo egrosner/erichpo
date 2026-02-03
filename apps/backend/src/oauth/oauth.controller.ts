@@ -1,6 +1,17 @@
 import type { CurrentUser } from "@erichpo/shared";
-import { Controller, Get, Logger, Query, Req, Res } from "@nestjs/common";
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import type { Request, Response } from "express";
+import { GetCurrentUser, JwtAuthGuard } from "../auth";
 import { AuthService } from "../auth/auth.service";
 import { OAuthService } from "./oauth.service";
 
@@ -121,5 +132,91 @@ export class OAuthController {
     }
 
     return null;
+  }
+
+  // ========== User OAuth (for Slack impersonation) ==========
+
+  @Get("user/connect")
+  @UseGuards(JwtAuthGuard)
+  async userConnect(@GetCurrentUser() user: CurrentUser, @Res() res: Response) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+
+    const url = this.oauthService.getUserConnectUrl(
+      user.id,
+      user.currentWorkspace.workspaceId,
+    );
+    res.redirect(url);
+  }
+
+  @Get("user/callback")
+  async userCallback(
+    @Query("code") code: string,
+    @Query("state") state: string,
+    @Query("error") oauthError: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = "/dashboard";
+
+    if (oauthError) {
+      this.logger.error(`Slack user OAuth denied: ${oauthError}`);
+      res.redirect(
+        `${frontendUrl}?slack_connect_error=${encodeURIComponent(oauthError)}`,
+      );
+      return;
+    }
+
+    if (!code || !state) {
+      res.redirect(`${frontendUrl}?slack_connect_error=missing_params`);
+      return;
+    }
+
+    const stateData = this.oauthService.getUserStateData(state);
+    if (!stateData) {
+      this.logger.warn(
+        `User OAuth callback: invalid or expired state="${state}"`,
+      );
+      res.redirect(`${frontendUrl}?slack_connect_error=invalid_state`);
+      return;
+    }
+
+    try {
+      const result = await this.oauthService.handleUserCallback(
+        code,
+        stateData.userId,
+        stateData.workspaceId,
+      );
+
+      this.logger.log(
+        `User ${stateData.userId} connected Slack in workspace ${stateData.workspaceId}`,
+      );
+
+      res.redirect(`${frontendUrl}?slack_connected=true`);
+    } catch (error) {
+      this.logger.error(
+        `User OAuth callback failed: ${(error as Error).message}`,
+      );
+      res.redirect(
+        `${frontendUrl}?slack_connect_error=${encodeURIComponent((error as Error).message)}`,
+      );
+    }
+  }
+
+  @Post("user/disconnect")
+  @UseGuards(JwtAuthGuard)
+  async userDisconnect(
+    @GetCurrentUser() user: CurrentUser,
+  ): Promise<{ ok: boolean }> {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+
+    await this.oauthService.disconnectSlackUser(
+      user.id,
+      user.currentWorkspace.workspaceId,
+    );
+
+    return { ok: true };
   }
 }

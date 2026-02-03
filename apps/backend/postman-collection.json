@@ -300,6 +300,54 @@
             },
             "description": "OAuth callback endpoint. Exchanges the code for a bot token, stores the SlackWorkspace, creates the OrgMapping, and creates a WorkspaceMembership for the installer as admin."
           }
+        },
+        {
+          "name": "Slack User OAuth Connect",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/oauth/slack/user/connect",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "oauth", "slack", "user", "connect"]
+            },
+            "description": "Initiates Slack user OAuth flow for impersonation. Requires authentication. Redirects to Slack OAuth consent screen requesting chat:write user scope. After authorization, redirects to /api/oauth/slack/user/callback which stores the user's Slack token for posting messages as them."
+          }
+        },
+        {
+          "name": "Slack User OAuth Callback",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/oauth/slack/user/callback?code=test-code&state=uuid-state-key",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "oauth", "slack", "user", "callback"],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "test-code",
+                  "description": "Authorization code from Slack"
+                },
+                {
+                  "key": "state",
+                  "value": "uuid-state-key",
+                  "description": "State key that maps to user_id and workspace_id on the server"
+                }
+              ]
+            },
+            "description": "User OAuth callback endpoint. Exchanges the code for a user token, stores it in the user's WorkspaceMembership for Slack impersonation. Redirects to /dashboard with success or error query params."
+          }
+        },
+        {
+          "name": "Slack User OAuth Disconnect",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/oauth/slack/user/disconnect",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "oauth", "slack", "user", "disconnect"]
+            },
+            "description": "Disconnects the user's Slack account for the current workspace. Removes the stored Slack user token from their WorkspaceMembership. Requires authentication."
+          }
         }
       ]
     },

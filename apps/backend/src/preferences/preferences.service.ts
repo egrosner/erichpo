@@ -4,6 +4,8 @@ import { DatabaseService } from "../database";
 export interface UserPreferences {
   slackMentions: boolean;
   slackInvites: boolean;
+  slackConnected: boolean;
+  slackUserId: string | null;
 }
 
 @Injectable()
@@ -26,6 +28,8 @@ export class PreferencesService {
       select: {
         slackMentions: true,
         slackInvites: true,
+        slackUserId: true,
+        slackAccessToken: true,
       },
     });
 
@@ -34,19 +38,25 @@ export class PreferencesService {
       return {
         slackMentions: true,
         slackInvites: true,
+        slackConnected: false,
+        slackUserId: null,
       };
     }
 
     return {
       slackMentions: membership.slackMentions,
       slackInvites: membership.slackInvites,
+      slackConnected: !!membership.slackAccessToken,
+      slackUserId: membership.slackUserId,
     };
   }
 
   async updatePreferences(
     userId: number,
     workspaceId: number,
-    preferences: Partial<UserPreferences>,
+    preferences: Partial<
+      Pick<UserPreferences, "slackMentions" | "slackInvites">
+    >,
   ): Promise<UserPreferences> {
     const updated = await this.db.workspaceMembership.update({
       where: {
@@ -66,6 +76,8 @@ export class PreferencesService {
       select: {
         slackMentions: true,
         slackInvites: true,
+        slackUserId: true,
+        slackAccessToken: true,
       },
     });
 
@@ -76,6 +88,8 @@ export class PreferencesService {
     return {
       slackMentions: updated.slackMentions,
       slackInvites: updated.slackInvites,
+      slackConnected: !!updated.slackAccessToken,
+      slackUserId: updated.slackUserId,
     };
   }
 }

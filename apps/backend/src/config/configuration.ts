@@ -19,6 +19,7 @@ const configSchema = z.object({
     clientId: z.string().optional(),
     clientSecret: z.string().optional(),
     oauthRedirectUrl: z.string().optional(),
+    userOauthRedirectUrl: z.string().optional(),
   }),
 
   database: z.object({
@@ -65,6 +66,7 @@ export function configuration(): Config {
       clientId: process.env.SLACK_CLIENT_ID,
       clientSecret: process.env.SLACK_CLIENT_SECRET,
       oauthRedirectUrl: process.env.SLACK_OAUTH_REDIRECT_URL,
+      userOauthRedirectUrl: process.env.SLACK_USER_OAUTH_REDIRECT_URL,
     },
 
     database: {

@@ -66,7 +66,10 @@ export class InviteController {
 
     if (user) {
       try {
-        const result = await this.inviteService.redeemInviteForUser(token, user);
+        const result = await this.inviteService.redeemInviteForUser(
+          token,
+          user,
+        );
         this.setAuthCookie(res, result.newAuthToken);
         return this.redirectWithSuccess(res, result.workspaceName);
       } catch (err) {

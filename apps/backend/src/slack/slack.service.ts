@@ -145,6 +145,11 @@ export class SlackService implements OnModuleInit {
       thread_ts: threadTs,
       unfurl_links: false,
       unfurl_media: false,
+      // Tag message as from GitHub sync to prevent echo loops
+      metadata: {
+        event_type: "github_sync",
+        event_payload: {},
+      },
     });
 
     if (!result.ts) {
@@ -177,6 +182,11 @@ export class SlackService implements OnModuleInit {
       thread_ts: threadTs,
       unfurl_links: false,
       unfurl_media: false,
+      // Tag message as from GitHub sync to prevent echo loops
+      metadata: {
+        event_type: "github_sync",
+        event_payload: {},
+      },
     });
 
     if (!result.ts) {

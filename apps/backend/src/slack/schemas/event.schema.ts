@@ -18,6 +18,12 @@ const messageEventSchema = z.object({
   app_id: z.string().optional(), // Present when message was posted by an app
   subtype: z.string().optional(),
   thread_ts: z.string().optional(),
+  metadata: z
+    .object({
+      event_type: z.string(),
+      event_payload: z.record(z.string(), z.unknown()).optional(),
+    })
+    .optional(),
 });
 
 // Event callback wrapper

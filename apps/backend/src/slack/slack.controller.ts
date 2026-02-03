@@ -53,7 +53,15 @@ export class SlackController {
         return { ok: true, ignored: true };
       }
 
-      // Check if this is a message we posted (prevents echo loops)
+      // Check if this message was posted by our GitHub sync (has our metadata tag)
+      if (messageEvent.metadata?.event_type === "github_sync") {
+        this.logger.debug(
+          `Ignoring github_sync message: channel=${messageEvent.channel}, ts=${messageEvent.ts}`,
+        );
+        return { ok: true, ignored: true };
+      }
+
+      // Check if this is a message we posted (backup check using timestamp tracking)
       if (this.slackService.isOwnMessage(messageEvent.channel, messageEvent.ts)) {
         this.logger.debug(
           `Ignoring own message: channel=${messageEvent.channel}, ts=${messageEvent.ts}`,

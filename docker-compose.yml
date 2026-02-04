@@ -17,6 +17,8 @@ services:
     build:
       context: .
       dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_GITHUB_APP_URL: https://github.com/apps/erichpo/installations/new
     restart: unless-stopped
 
   caddy:

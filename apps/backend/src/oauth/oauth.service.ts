@@ -37,7 +37,12 @@ export class OAuthService {
   private readonly logger = new Logger(OAuthService.name);
   private readonly pendingStates = new Map<
     string,
-    { installationId: number; userId?: number; createdAt: number }
+    {
+      installationId: number;
+      userId?: number;
+      frontendRedirect?: string;
+      createdAt: number;
+    }
   >();
   private readonly pendingUserStates = new Map<string, UserOAuthState>();
 
@@ -47,7 +52,11 @@ export class OAuthService {
     private readonly slackService: SlackService,
   ) {}
 
-  getInstallUrl(installationId: number, userId?: number): string {
+  getInstallUrl(
+    installationId: number,
+    userId?: number,
+    frontendRedirect?: string,
+  ): string {
     const clientId = this.configService.get<string>("slack.clientId");
     if (!clientId) {
       throw new Error("SLACK_CLIENT_ID not configured");
@@ -68,6 +77,7 @@ export class OAuthService {
     this.pendingStates.set(stateKey, {
       installationId,
       userId,
+      frontendRedirect,
       createdAt: Date.now(),
     });
 
@@ -95,13 +105,19 @@ export class OAuthService {
     return url;
   }
 
-  getStateData(
-    stateKey: string,
-  ): { installationId: number; userId?: number } | null {
+  getStateData(stateKey: string): {
+    installationId: number;
+    userId?: number;
+    frontendRedirect?: string;
+  } | null {
     const pending = this.pendingStates.get(stateKey);
     if (!pending) return null;
     this.pendingStates.delete(stateKey);
-    return { installationId: pending.installationId, userId: pending.userId };
+    return {
+      installationId: pending.installationId,
+      userId: pending.userId,
+      frontendRedirect: pending.frontendRedirect,
+    };
   }
 
   async handleCallback(

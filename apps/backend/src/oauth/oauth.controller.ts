@@ -27,6 +27,7 @@ export class OAuthController {
   @Get("install")
   async install(
     @Query("installation_id") installationId: string,
+    @Query("frontend_redirect") frontendRedirect: string | undefined,
     @Req() req: Request,
     @Res() res: Response,
   ) {
@@ -50,7 +51,11 @@ export class OAuthController {
       // No valid auth token, proceed without user ID
     }
 
-    const url = this.oauthService.getInstallUrl(Number(installationId), userId);
+    const url = this.oauthService.getInstallUrl(
+      Number(installationId),
+      userId,
+      frontendRedirect,
+    );
     res.redirect(url);
   }
 
@@ -61,35 +66,59 @@ export class OAuthController {
     @Query("error") oauthError: string,
     @Res() res: Response,
   ) {
-    if (oauthError) {
-      this.logger.error(`Slack OAuth denied: ${oauthError}`);
-      res
-        .status(400)
-        .json({ ok: false, error: `Slack OAuth error: ${oauthError}` });
-      return;
-    }
-
-    if (!code) {
-      res.status(400).json({ error: "Missing code parameter from Slack" });
-      return;
-    }
-
-    // Look up state data from server-side state store.
-    // If no state is present (direct install from Slack app directory),
-    // we still store the workspace but skip OrgMapping creation and membership.
+    // Look up state data from server-side state store first to get frontendRedirect
     let installationId: number | null = null;
     let userId: number | undefined;
+    let frontendRedirect: string | undefined;
 
     if (state) {
       const stateData = this.oauthService.getStateData(state);
       if (stateData) {
         installationId = stateData.installationId;
         userId = stateData.userId;
+        frontendRedirect = stateData.frontendRedirect;
       } else {
         this.logger.warn(
           `OAuth callback: could not resolve state data from state="${state}" (expired or invalid)`,
         );
       }
+    }
+
+    // Helper to redirect to frontend with params or return JSON
+    const respond = (
+      success: boolean,
+      data: Record<string, string | number | null>,
+    ) => {
+      if (frontendRedirect) {
+        const url = new URL(frontendRedirect);
+        for (const [key, value] of Object.entries(data)) {
+          if (value !== null && value !== undefined) {
+            url.searchParams.set(key, String(value));
+          }
+        }
+        res.redirect(url.toString());
+      } else if (success) {
+        res.json({ ok: true, ...data });
+      } else {
+        res.status(success ? 200 : 400).json({ ok: false, ...data });
+      }
+    };
+
+    if (oauthError) {
+      this.logger.error(`Slack OAuth denied: ${oauthError}`);
+      respond(false, {
+        workspace_setup: "error",
+        error: `Slack OAuth error: ${oauthError}`,
+      });
+      return;
+    }
+
+    if (!code) {
+      respond(false, {
+        workspace_setup: "error",
+        error: "Missing code parameter from Slack",
+      });
+      return;
     }
 
     try {
@@ -103,18 +132,26 @@ export class OAuthController {
         ? `Successfully connected workspace "${result.teamName}" to GitHub installation ${result.installationId}`
         : `Successfully registered workspace "${result.teamName}". Link it to a GitHub installation via /api/oauth/slack/install?installation_id=X`;
 
-      res.json({
-        ok: true,
-        message,
-        teamId: result.teamId,
-        teamName: result.teamName,
-        installationId: result.installationId,
-        workspaceId: result.workspaceId,
-      });
+      if (frontendRedirect) {
+        respond(true, {
+          workspace_setup: "success",
+          workspace_name: result.teamName,
+          workspace_id: result.workspaceId,
+        });
+      } else {
+        res.json({
+          ok: true,
+          message,
+          teamId: result.teamId,
+          teamName: result.teamName,
+          installationId: result.installationId,
+          workspaceId: result.workspaceId,
+        });
+      }
     } catch (error) {
       this.logger.error(`OAuth callback failed: ${(error as Error).message}`);
-      res.status(500).json({
-        ok: false,
+      respond(false, {
+        workspace_setup: "error",
         error: (error as Error).message,
       });
     }

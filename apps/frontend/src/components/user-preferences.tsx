@@ -10,7 +10,14 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, AtSign, UserPlus, MessageSquare, Link, Unlink } from "lucide-react";
+import {
+  Settings,
+  AtSign,
+  UserPlus,
+  MessageSquare,
+  Link,
+  Unlink,
+} from "lucide-react";
 
 interface UserPreferences {
   slackMentions: boolean;
@@ -29,6 +36,8 @@ export function UserPreferences() {
   const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
+    // Clear stale preferences from previous workspace before fetching
+    setPreferences(null);
     fetchPreferences();
 
     // Check URL params for Slack connection result
@@ -70,7 +79,7 @@ export function UserPreferences() {
 
   const updatePreference = async (
     key: "slackMentions" | "slackInvites",
-    value: boolean
+    value: boolean,
   ) => {
     if (!preferences) return;
 
@@ -124,7 +133,7 @@ export function UserPreferences() {
 
       if (res.ok) {
         setPreferences((prev) =>
-          prev ? { ...prev, slackConnected: false, slackUserId: null } : null
+          prev ? { ...prev, slackConnected: false, slackUserId: null } : null,
         );
         setSuccessMessage("Slack account disconnected");
       } else {
@@ -150,7 +159,8 @@ export function UserPreferences() {
           <CardTitle>Notification Preferences</CardTitle>
         </div>
         <CardDescription>
-          Control how you receive Slack notifications for {currentWorkspace.teamName}
+          Control how you receive Slack notifications for{" "}
+          {currentWorkspace.teamName}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

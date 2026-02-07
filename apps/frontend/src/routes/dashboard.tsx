@@ -15,7 +15,27 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { GitBranch, LogOut, Building2, CheckCircle, AlertCircle, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import {
+  GitBranch,
+  LogOut,
+  Building2,
+  CheckCircle,
+  AlertCircle,
+  X,
+  Trash2,
+} from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
 
@@ -59,7 +79,8 @@ function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { user, isWorkspaceAdmin, currentWorkspace, logout, refetch } = useAuth();
+  const { user, isWorkspaceAdmin, currentWorkspace, logout, refetch } =
+    useAuth();
   const {
     invited,
     invite_error,
@@ -74,9 +95,8 @@ function DashboardContent() {
   const [showGitHubLinkedBanner, setShowGitHubLinkedBanner] = useState(
     github_linked === "success",
   );
-  const [showGitHubErrorBanner, setShowGitHubErrorBanner] = useState(
-    !!github_setup_error,
-  );
+  const [showGitHubErrorBanner, setShowGitHubErrorBanner] =
+    useState(!!github_setup_error);
   const [wizardOpen, setWizardOpen] = useState(false);
 
   // Parse OAuth result from URL params
@@ -114,7 +134,13 @@ function DashboardContent() {
 
   // Clear URL params after showing banner
   useEffect(() => {
-    if (invited || invite_error || workspace_setup || github_linked || github_setup_error) {
+    if (
+      invited ||
+      invite_error ||
+      workspace_setup ||
+      github_linked ||
+      github_setup_error
+    ) {
       const url = new URL(window.location.href);
       url.searchParams.delete("invited");
       url.searchParams.delete("invite_error");
@@ -127,7 +153,13 @@ function DashboardContent() {
       url.searchParams.delete("github_setup");
       window.history.replaceState({}, "", url.pathname);
     }
-  }, [invited, invite_error, workspace_setup, github_linked, github_setup_error]);
+  }, [
+    invited,
+    invite_error,
+    workspace_setup,
+    github_linked,
+    github_setup_error,
+  ]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,7 +190,9 @@ function DashboardContent() {
             <CheckCircle className="h-4 w-4 text-green-500" />
             <AlertTitle>Welcome!</AlertTitle>
             <AlertDescription className="flex items-center justify-between">
-              <span>You've successfully joined <strong>{invited}</strong>.</span>
+              <span>
+                You've successfully joined <strong>{invited}</strong>.
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -279,7 +313,8 @@ function DashboardContent() {
                     Team ID: {currentWorkspace.teamId}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Your role: {currentWorkspace.role === "admin" ? "Admin" : "User"}
+                    Your role:{" "}
+                    {currentWorkspace.role === "admin" ? "Admin" : "User"}
                   </p>
                 </CardContent>
               </Card>
@@ -291,6 +326,13 @@ function DashboardContent() {
           {isWorkspaceAdmin && <OrgMappingsManagement />}
 
           {isWorkspaceAdmin && <MembersManagement />}
+
+          {isWorkspaceAdmin && currentWorkspace && (
+            <DangerZone
+              workspaceName={currentWorkspace.teamName}
+              onDeleted={refetch}
+            />
+          )}
         </div>
       </main>
 
@@ -300,5 +342,119 @@ function DashboardContent() {
         oauthResult={oauthResult}
       />
     </div>
+  );
+}
+
+function DangerZone({
+  workspaceName,
+  onDeleted,
+}: {
+  workspaceName: string;
+  onDeleted: () => Promise<void>;
+}) {
+  const [confirmText, setConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/workspace", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Failed to delete workspace");
+      }
+      await onDeleted();
+    } catch (err) {
+      setError((err as Error).message);
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Card className="border-destructive">
+      <CardHeader>
+        <CardTitle className="text-destructive">Danger Zone</CardTitle>
+        <CardDescription>
+          Irreversible actions that permanently affect this workspace.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium">Delete this workspace</p>
+            <p className="text-sm text-muted-foreground">
+              Permanently delete <strong>{workspaceName}</strong> and all its
+              data including org mappings, user mappings, PR channels, and
+              members.
+            </p>
+          </div>
+          <AlertDialog
+            open={open}
+            onOpenChange={(o) => {
+              setOpen(o);
+              if (!o) {
+                setConfirmText("");
+                setError(null);
+              }
+            }}
+          >
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Workspace
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete workspace?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete <strong>{workspaceName}</strong>{" "}
+                  and all associated data. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="grid gap-2">
+                <label
+                  htmlFor="confirm-delete"
+                  className="text-sm text-muted-foreground"
+                >
+                  Type <strong>{workspaceName}</strong> to confirm:
+                </label>
+                <Input
+                  id="confirm-delete"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={workspaceName}
+                  autoComplete="off"
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={confirmText !== workspaceName || deleting}
+                  onClick={handleDelete}
+                >
+                  {deleting ? "Deleting..." : "Delete Workspace"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

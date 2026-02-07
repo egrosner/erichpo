@@ -117,7 +117,7 @@ export class IntegrationService {
 
     return {
       token: user.githubAccessToken,
-      username: user.githubUsername,
+      username: user.githubUsername ?? userMapping.githubUsername,
     };
   }
 

@@ -4,8 +4,14 @@ import type {
   WorkspaceMembership,
   WorkspaceRole,
 } from "@erichpo/shared";
-import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import * as bcrypt from "bcryptjs";
 import * as jwt from "jsonwebtoken";
 import { DatabaseService } from "../database";
 
@@ -267,6 +273,104 @@ export class AuthService {
     };
   }
 
+  async register(
+    email: string,
+    password: string,
+  ): Promise<{ user: CurrentUser; token: string }> {
+    // Check if email is already taken
+    const existing = await this.db.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException("Email already registered");
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await this.db.user.create({
+      data: {
+        email,
+        passwordHash,
+        githubUsername: email.split("@")[0], // Default display name from email
+      },
+    });
+
+    // Create session
+    const sessionMaxAge =
+      this.configService.get<number>("auth.sessionMaxAge") ??
+      7 * 24 * 60 * 60 * 1000;
+    const session = await this.db.session.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + sessionMaxAge),
+      },
+    });
+
+    const workspaces = await this.getUserWorkspaces(user.id);
+    const currentWorkspace = workspaces.length > 0 ? workspaces[0] : null;
+    const token = this.generateJwt(user, session.id, currentWorkspace);
+
+    this.logger.log(`User registered via email: ${email}`);
+
+    return {
+      user: {
+        id: user.id,
+        githubId: user.githubId,
+        githubUsername: user.githubUsername,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        sessionId: session.id,
+        workspaces,
+        currentWorkspace,
+      },
+      token,
+    };
+  }
+
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{ user: CurrentUser; token: string }> {
+    const user = await this.db.user.findUnique({ where: { email } });
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException("Invalid email or password");
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException("Invalid email or password");
+    }
+
+    // Create session
+    const sessionMaxAge =
+      this.configService.get<number>("auth.sessionMaxAge") ??
+      7 * 24 * 60 * 60 * 1000;
+    const session = await this.db.session.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + sessionMaxAge),
+      },
+    });
+
+    const workspaces = await this.getUserWorkspaces(user.id);
+    const currentWorkspace = workspaces.length > 0 ? workspaces[0] : null;
+    const token = this.generateJwt(user, session.id, currentWorkspace);
+
+    this.logger.log(`User logged in via email: ${email}`);
+
+    return {
+      user: {
+        id: user.id,
+        githubId: user.githubId,
+        githubUsername: user.githubUsername,
+        email: user.email,
+        avatarUrl: user.avatarUrl,
+        sessionId: session.id,
+        workspaces,
+        currentWorkspace,
+      },
+      token,
+    };
+  }
+
   async logout(sessionId: string): Promise<void> {
     await this.db.session.update({
       where: { id: sessionId },
@@ -286,8 +390,8 @@ export class AuthService {
   private generateJwt(
     user: {
       id: number;
-      githubId: number;
-      githubUsername: string;
+      githubId: number | null;
+      githubUsername: string | null;
     },
     sessionId: string,
     currentWorkspace: WorkspaceMembership | null,
@@ -303,8 +407,8 @@ export class AuthService {
     const payload: Omit<AppJwtPayload, "iat" | "exp"> = {
       sub: user.id,
       sid: sessionId,
-      githubId: user.githubId,
-      username: user.githubUsername,
+      githubId: user.githubId ?? null,
+      username: user.githubUsername ?? "user",
       currentWorkspaceId: currentWorkspace?.workspaceId ?? null,
     };
 

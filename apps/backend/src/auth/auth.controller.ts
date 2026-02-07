@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@erichpo/shared";
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -188,6 +189,72 @@ export class AuthController {
     // Default: new_workspace intent - redirect to wizard with installation pre-selected
     const targetUrl = state.returnTo ?? "/no-workspace";
     res.redirect(`${targetUrl}?github_setup=${installationId}`);
+  }
+
+  @Public()
+  @Post("register")
+  async register(
+    @Body() body: { email: string; password: string },
+    @Res() res: Response,
+  ) {
+    if (!body.email || !body.password) {
+      throw new BadRequestException("Email and password are required");
+    }
+    if (body.password.length < 8) {
+      throw new BadRequestException(
+        "Password must be at least 8 characters long",
+      );
+    }
+
+    const { token } = await this.authService.register(
+      body.email,
+      body.password,
+    );
+
+    const isSecure =
+      this.configService.get<boolean>("auth.cookieSecure") ?? true;
+    const sessionMaxAge =
+      this.configService.get<number>("auth.sessionMaxAge") ??
+      7 * 24 * 60 * 60 * 1000;
+
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      maxAge: sessionMaxAge,
+      path: "/",
+    });
+
+    res.json({ success: true });
+  }
+
+  @Public()
+  @Post("login")
+  async loginWithPassword(
+    @Body() body: { email: string; password: string },
+    @Res() res: Response,
+  ) {
+    if (!body.email || !body.password) {
+      throw new BadRequestException("Email and password are required");
+    }
+
+    const { token } = await this.authService.login(body.email, body.password);
+
+    const isSecure =
+      this.configService.get<boolean>("auth.cookieSecure") ?? true;
+    const sessionMaxAge =
+      this.configService.get<number>("auth.sessionMaxAge") ??
+      7 * 24 * 60 * 60 * 1000;
+
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      secure: isSecure,
+      sameSite: "lax",
+      maxAge: sessionMaxAge,
+      path: "/",
+    });
+
+    res.json({ success: true });
   }
 
   @UseGuards(JwtAuthGuard)

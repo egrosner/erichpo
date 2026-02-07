@@ -13,11 +13,11 @@ export const workspaceMembershipSchema = z.object({
 });
 export type WorkspaceMembership = z.infer<typeof workspaceMembershipSchema>;
 
-// User schema (matches Prisma User model, excluding deprecated role)
+// User schema (matches Prisma User model)
 export const userSchema = z.object({
   id: z.number(),
-  githubId: z.number(),
-  githubUsername: z.string(),
+  githubId: z.number().nullable(),
+  githubUsername: z.string().nullable(),
   email: z.string().nullable(),
   avatarUrl: z.string().nullable(),
 });
@@ -27,8 +27,8 @@ export type User = z.infer<typeof userSchema>;
 export const jwtPayloadSchema = z.object({
   sub: z.number(), // User ID
   sid: z.string(), // Session ID (for revocation)
-  githubId: z.number(),
-  username: z.string(),
+  githubId: z.number().nullable(),
+  username: z.string(), // GitHub username or email
   currentWorkspaceId: z.number().nullable(), // Current workspace context (null if no workspace)
   iat: z.number().optional(),
   exp: z.number().optional(),
@@ -38,8 +38,8 @@ export type JwtPayload = z.infer<typeof jwtPayloadSchema>;
 // Current user (returned by /api/auth/me)
 export const currentUserSchema = z.object({
   id: z.number(),
-  githubId: z.number(),
-  githubUsername: z.string(),
+  githubId: z.number().nullable(),
+  githubUsername: z.string().nullable(),
   email: z.string().nullable(),
   avatarUrl: z.string().nullable(),
   sessionId: z.string(),

@@ -97,7 +97,9 @@ Requires Node >= 24.13.0, pnpm 10.28.1. See `apps/backend/.env.example` for all 
 
 ## Commit Conventions
 
-Use [Conventional Commits](https://www.conventionalcommits.org/). Format: `<type>(<scope>): <description>`
+**All commits must follow [Conventional Commits](https://www.conventionalcommits.org/).** This is enforced by a `commit-msg` git hook via commitlint + simple-git-hooks. Non-conforming commits will be rejected.
+
+Format: `<type>(<scope>): <description>`
 
 Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`, `build`, `ci`
 

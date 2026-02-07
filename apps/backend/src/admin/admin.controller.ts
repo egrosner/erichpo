@@ -216,6 +216,14 @@ export class AdminController {
     );
   }
 
+  @Delete("workspace")
+  async deleteWorkspace(@GetCurrentUser() user: CurrentUser) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.adminService.deleteWorkspace(user.currentWorkspace.workspaceId);
+  }
+
   @Delete("invite-links/:id")
   async deleteInviteLink(
     @GetCurrentUser() user: CurrentUser,

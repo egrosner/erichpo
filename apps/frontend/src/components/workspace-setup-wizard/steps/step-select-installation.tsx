@@ -1,11 +1,3 @@
-import { useEffect, useState } from "react";
-import {
-  Building2,
-  ExternalLink,
-  Github,
-  RefreshCw,
-  User,
-} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -18,6 +10,8 @@ import {
   getGitHubInstallUrlForLink,
   getGitHubInstallUrlForNewWorkspace,
 } from "@/lib/github";
+import { Building2, ExternalLink, Github, RefreshCw, User } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export interface Installation {
   id: number;

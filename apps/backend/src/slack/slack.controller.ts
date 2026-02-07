@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { SlackSignatureGuard } from "../common/guards";
-import { IntegrationService } from "../integration/integration.service";
+import type { IntegrationService } from "../integration/integration.service";
 import { slackEventSchema } from "./schemas/event.schema";
 
 @Controller("api/webhooks/slack")

@@ -1,11 +1,7 @@
-import { createRoute, Link, useSearch } from "@tanstack/react-router";
-import { Route as rootRoute } from "./__root";
-import { ProtectedRoute } from "@/components/protected-route";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { MembersManagement } from "@/components/members-management";
 import { OrgMappingsManagement } from "@/components/org-mappings-management";
-import { UserPreferences } from "@/components/user-preferences";
-import { useAuth } from "@/lib/auth";
+import { ProtectedRoute } from "@/components/protected-route";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,10 +10,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { GitBranch, LogOut, Building2, CheckCircle, AlertCircle, X } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { UserPreferences } from "@/components/user-preferences";
 import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { useAuth } from "@/lib/auth";
+import { Link, createRoute, useSearch } from "@tanstack/react-router";
+import {
+  AlertCircle,
+  Building2,
+  CheckCircle,
+  GitBranch,
+  LogOut,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Route as rootRoute } from "./__root";
 
 type DashboardSearch = {
   invited?: string;
@@ -59,7 +66,8 @@ function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { user, isWorkspaceAdmin, currentWorkspace, logout, refetch } = useAuth();
+  const { user, isWorkspaceAdmin, currentWorkspace, logout, refetch } =
+    useAuth();
   const {
     invited,
     invite_error,
@@ -114,7 +122,13 @@ function DashboardContent() {
 
   // Clear URL params after showing banner
   useEffect(() => {
-    if (invited || invite_error || workspace_setup || github_linked || github_setup_error) {
+    if (
+      invited ||
+      invite_error ||
+      workspace_setup ||
+      github_linked ||
+      github_setup_error
+    ) {
       const url = new URL(window.location.href);
       url.searchParams.delete("invited");
       url.searchParams.delete("invite_error");
@@ -127,7 +141,13 @@ function DashboardContent() {
       url.searchParams.delete("github_setup");
       window.history.replaceState({}, "", url.pathname);
     }
-  }, [invited, invite_error, workspace_setup, github_linked, github_setup_error]);
+  }, [
+    invited,
+    invite_error,
+    workspace_setup,
+    github_linked,
+    github_setup_error,
+  ]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -158,7 +178,9 @@ function DashboardContent() {
             <CheckCircle className="h-4 w-4 text-green-500" />
             <AlertTitle>Welcome!</AlertTitle>
             <AlertDescription className="flex items-center justify-between">
-              <span>You've successfully joined <strong>{invited}</strong>.</span>
+              <span>
+                You've successfully joined <strong>{invited}</strong>.
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
@@ -279,7 +301,8 @@ function DashboardContent() {
                     Team ID: {currentWorkspace.teamId}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Your role: {currentWorkspace.role === "admin" ? "Admin" : "User"}
+                    Your role:{" "}
+                    {currentWorkspace.role === "admin" ? "Admin" : "User"}
                   </p>
                 </CardContent>
               </Card>

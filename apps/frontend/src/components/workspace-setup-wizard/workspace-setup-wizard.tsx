@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth";
 import {
   Dialog,
   DialogContent,
@@ -7,13 +5,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  useWizardPersistence,
-  type WizardStep,
-} from "./use-wizard-persistence";
-import { StepSelectInstallation } from "./steps/step-select-installation";
-import { StepConnectSlack } from "./steps/step-connect-slack";
+import { useAuth } from "@/lib/auth";
+import { useEffect, useState } from "react";
 import { StepComplete } from "./steps/step-complete";
+import { StepConnectSlack } from "./steps/step-connect-slack";
+import { StepSelectInstallation } from "./steps/step-select-installation";
+import {
+  type WizardStep,
+  useWizardPersistence,
+} from "./use-wizard-persistence";
 
 interface WorkspaceSetupWizardProps {
   open: boolean;
@@ -75,7 +75,10 @@ export function WorkspaceSetupWizard({
     ) {
       // We have a pre-selected installation, set it and move to connect-slack
       // We don't know the name yet, but we can fetch it or use a placeholder
-      wizard.setInstallation(preSelectedInstallationId, `Installation #${preSelectedInstallationId}`);
+      wizard.setInstallation(
+        preSelectedInstallationId,
+        `Installation #${preSelectedInstallationId}`,
+      );
       wizard.setStep("connect-slack");
       setPreSelectHandled(true);
     }

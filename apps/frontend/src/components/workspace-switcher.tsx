@@ -1,6 +1,3 @@
-import { useState } from "react";
-import { Building2, Check, ChevronDown, Plus } from "lucide-react";
-import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +8,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
+import { useAuth } from "@/lib/auth";
+import { Building2, Check, ChevronDown, Plus } from "lucide-react";
+import { useState } from "react";
 
 export function WorkspaceSwitcher() {
   const { workspaces, currentWorkspace, switchWorkspace } = useAuth();

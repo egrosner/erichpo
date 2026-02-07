@@ -1,6 +1,3 @@
-import { useState } from "react";
-import { useAuth } from "@/lib/auth";
-import { Building2, CheckCircle2, Github, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +7,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StepSelectInstallation } from "@/components/workspace-setup-wizard/steps/step-select-installation";
+import { useAuth } from "@/lib/auth";
+import { Building2, CheckCircle2, Github, Link2 } from "lucide-react";
+import { useState } from "react";
 
 type WizardStep = "select" | "confirm" | "complete";
 
@@ -18,7 +18,10 @@ interface LinkGitHubWizardProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function LinkGitHubWizard({ open, onOpenChange }: LinkGitHubWizardProps) {
+export function LinkGitHubWizard({
+  open,
+  onOpenChange,
+}: LinkGitHubWizardProps) {
   const { currentWorkspace, refetch } = useAuth();
   const [step, setStep] = useState<WizardStep>("select");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -138,7 +141,8 @@ export function LinkGitHubWizard({ open, onOpenChange }: LinkGitHubWizardProps) 
 
               <p className="text-sm text-muted-foreground">
                 PRs from repositories in <strong>{selectedName}</strong> will
-                create channels in <strong>{currentWorkspace?.teamName}</strong>.
+                create channels in <strong>{currentWorkspace?.teamName}</strong>
+                .
               </p>
 
               <div className="flex justify-between pt-2">

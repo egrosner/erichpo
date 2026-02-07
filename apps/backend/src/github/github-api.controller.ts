@@ -1,8 +1,8 @@
 import type { CurrentUser } from "@erichpo/shared";
 import { Controller, Get, Logger, UseGuards } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import { GetCurrentUser, JwtAuthGuard } from "../auth";
-import { DatabaseService } from "../database";
+import type { DatabaseService } from "../database";
 
 interface GitHubInstallation {
   id: number;

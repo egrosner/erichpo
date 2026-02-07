@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Req, Res } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import { Public } from "../auth";
-import { InviteService } from "./invite.service";
+import type { InviteService } from "./invite.service";
 
 @Controller("api/invite")
 export class InviteController {

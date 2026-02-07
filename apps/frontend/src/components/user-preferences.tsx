@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,16 +8,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/auth";
 import {
-  Settings,
   AtSign,
-  UserPlus,
-  MessageSquare,
   Link,
+  MessageSquare,
+  Settings,
   Unlink,
+  UserPlus,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface UserPreferences {
   slackMentions: boolean;

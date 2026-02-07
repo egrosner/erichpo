@@ -10,10 +10,10 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
-import { DatabaseService } from "../database";
-import { AuthService } from "./auth.service";
+import type { DatabaseService } from "../database";
+import type { AuthService } from "./auth.service";
 import { GetCurrentUser } from "./decorators/current-user.decorator";
 import { Public } from "./decorators/public.decorator";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";

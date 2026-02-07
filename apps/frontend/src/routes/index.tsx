@@ -1,17 +1,30 @@
-import { createRoute, Link } from '@tanstack/react-router'
-import { Route as rootRoute } from './__root'
-import { GitBranch, MessageSquare, Zap, Users, Archive, Bell } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { useAuth } from '@/lib/auth'
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/lib/auth";
+import { Link, createRoute } from "@tanstack/react-router";
+import {
+  Archive,
+  Bell,
+  GitBranch,
+  MessageSquare,
+  Users,
+  Zap,
+} from "lucide-react";
+import { Route as rootRoute } from "./__root";
 
 export const Route = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: "/",
   component: LandingPage,
-})
+});
 
 function LandingPage() {
   return (
@@ -36,8 +49,9 @@ function LandingPage() {
               Bridge GitHub and Slack for Better Code Reviews
             </h1>
             <p className="text-xl text-muted-foreground mb-8">
-              Automatically create dedicated Slack channels for every pull request.
-              Sync comments, reviews, and CI status in real-time. Keep your team in the loop.
+              Automatically create dedicated Slack channels for every pull
+              request. Sync comments, reviews, and CI status in real-time. Keep
+              your team in the loop.
             </p>
             <div className="flex items-center justify-center gap-4">
               <Button size="lg" asChild>
@@ -148,7 +162,7 @@ function LandingPage() {
         </div>
       </footer>
     </div>
-  )
+  );
 }
 
 function FeatureCard({
@@ -156,9 +170,9 @@ function FeatureCard({
   title,
   description,
 }: {
-  icon: React.ReactNode
-  title: string
-  description: string
+  icon: React.ReactNode;
+  title: string;
+  description: string;
 }) {
   return (
     <Card>
@@ -170,7 +184,7 @@ function FeatureCard({
         <CardDescription>{description}</CardDescription>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function Step({
@@ -178,9 +192,9 @@ function Step({
   title,
   description,
 }: {
-  number: number
-  title: string
-  description: string
+  number: number;
+  title: string;
+  description: string;
 }) {
   return (
     <Card>
@@ -194,25 +208,33 @@ function Step({
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 function HeaderNav() {
-  const { isAuthenticated, isLoading, user, login } = useAuth()
+  const { isAuthenticated, isLoading, user, login } = useAuth();
 
   return (
     <nav className="flex items-center gap-6">
-      <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+      <a
+        href="#features"
+        className="text-muted-foreground hover:text-foreground transition-colors"
+      >
         Features
       </a>
-      <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors">
+      <a
+        href="#how-it-works"
+        className="text-muted-foreground hover:text-foreground transition-colors"
+      >
         How it Works
       </a>
       {isLoading ? (
         <Button disabled>Loading...</Button>
       ) : isAuthenticated ? (
         <>
-          <span className="text-sm text-muted-foreground">{user?.githubUsername}</span>
+          <span className="text-sm text-muted-foreground">
+            {user?.githubUsername}
+          </span>
           <Button asChild>
             <Link to="/dashboard">Dashboard</Link>
           </Button>
@@ -223,5 +245,5 @@ function HeaderNav() {
         </Button>
       )}
     </nav>
-  )
+  );
 }

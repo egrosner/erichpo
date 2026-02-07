@@ -1,7 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
-import { createRoute, Link, useSearch } from "@tanstack/react-router";
-import { Route as rootRoute } from "./__root";
-import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -10,9 +6,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { GitBranch, LogOut, Building2, Plus } from "lucide-react";
-import { Navigate, useNavigate } from "@tanstack/react-router";
 import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
+import { useAuth } from "@/lib/auth";
+import { Link, createRoute, useSearch } from "@tanstack/react-router";
+import { Navigate, useNavigate } from "@tanstack/react-router";
+import { Building2, GitBranch, LogOut, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Route as rootRoute } from "./__root";
 
 interface NoWorkspaceSearch {
   workspace_setup?: "success" | "error";
@@ -27,10 +27,7 @@ export const Route = createRoute({
   path: "/no-workspace",
   component: NoWorkspacePage,
   validateSearch: (search: Record<string, unknown>): NoWorkspaceSearch => ({
-    workspace_setup: search.workspace_setup as
-      | "success"
-      | "error"
-      | undefined,
+    workspace_setup: search.workspace_setup as "success" | "error" | undefined,
     workspace_name: search.workspace_name as string | undefined,
     workspace_id: search.workspace_id as string | undefined,
     error: search.error as string | undefined,
@@ -136,8 +133,8 @@ function NoWorkspacePage() {
                 <div className="p-4 border rounded-lg">
                   <h3 className="font-medium mb-1">Set Up a New Workspace</h3>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Connect a GitHub organization to a Slack workspace. You'll be
-                    automatically added as an admin.
+                    Connect a GitHub organization to a Slack workspace. You'll
+                    be automatically added as an admin.
                   </p>
                   <Button onClick={() => setWizardOpen(true)}>
                     <Plus className="h-4 w-4 mr-2" />

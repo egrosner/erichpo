@@ -625,6 +625,18 @@
           }
         },
         {
+          "name": "Delete Workspace",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/workspace",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "workspace"]
+            },
+            "description": "Permanently deletes the current workspace and all associated data including org mappings, user mappings, PR channel mappings, CI data, members, and invite links. This action is irreversible. Requires workspace admin role."
+          }
+        },
+        {
           "name": "Delete Invite Link",
           "request": {
             "method": "DELETE",

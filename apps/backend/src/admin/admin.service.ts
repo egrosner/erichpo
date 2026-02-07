@@ -384,4 +384,53 @@ export class AdminService {
 
     return { success: true };
   }
+
+  async deleteWorkspace(workspaceId: number) {
+    const workspace = await this.db.slackWorkspace.findUnique({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException("Workspace not found");
+    }
+
+    await this.db.$transaction(async (tx) => {
+      // Delete CI-related records linked through PrChannelMappings
+      const prChannels = await tx.prChannelMapping.findMany({
+        where: { slackWorkspaceId: workspaceId },
+        select: { id: true },
+      });
+      const prChannelIds = prChannels.map((pc) => pc.id);
+
+      if (prChannelIds.length > 0) {
+        await tx.ciStatusMessage.deleteMany({
+          where: { prChannelMappingId: { in: prChannelIds } },
+        });
+        await tx.checkRunResult.deleteMany({
+          where: { prChannelMappingId: { in: prChannelIds } },
+        });
+      }
+
+      await tx.prChannelMapping.deleteMany({
+        where: { slackWorkspaceId: workspaceId },
+      });
+
+      await tx.gitHubSlackUserMapping.deleteMany({
+        where: { slackWorkspaceId: workspaceId },
+      });
+
+      await tx.orgMapping.deleteMany({
+        where: { slackWorkspaceId: workspaceId },
+      });
+
+      // WorkspaceMembership and InviteLink cascade automatically
+      await tx.slackWorkspace.delete({
+        where: { id: workspaceId },
+      });
+    });
+
+    this.logger.log(`Deleted workspace ${workspace.teamName} (${workspaceId})`);
+
+    return { success: true };
+  }
 }

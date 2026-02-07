@@ -6,15 +6,79 @@ Prioritized list of work to turn erichpo from an MVP into a production SaaS. Org
 
 ## Phase 1: Foundation (Must-Have Before Charging Money)
 
-### Billing & Subscriptions
-- [ ] Integrate Stripe (or Lemon Squeezy) for payment processing
-- [ ] Define pricing tiers (e.g., Free: 1 workspace / 5 PRs/month, Pro: unlimited)
-- [ ] Add `Subscription` and `UsageRecord` models to Prisma schema
-- [ ] Implement feature gating middleware (check tier before creating channels, syncing comments, etc.)
-- [ ] Build billing settings UI (plan selection, payment method, invoices)
-- [ ] Handle subscription lifecycle webhooks (created, updated, canceled, payment failed)
-- [ ] Add usage tracking (PRs opened, channels created, messages synced per billing period)
-- [ ] Implement grace period / dunning for failed payments
+### Payment Model & Pricing Strategy
+
+**Recommended pricing structure (usage-based + seat hybrid):**
+
+| | Free | Team | Business |
+|---|---|---|---|
+| Price | $0 | $10/workspace/mo | $25/workspace/mo |
+| Workspaces | 1 | 3 | Unlimited |
+| Active PR channels | 5 concurrent | 50 concurrent | Unlimited |
+| Message sync | Last 24h of comments | Full history | Full history |
+| User mappings | Manual only | Auto-resolve | Auto-resolve + SSO |
+| CI status sync | Basic (pass/fail) | Detailed (per-check) | Detailed + custom |
+| Channel retention | Archive immediately | Configurable delay | Configurable + export |
+| Support | Community | Email (48h SLA) | Priority (4h SLA) |
+| Audit log | - | 30 days | 1 year |
+
+**Why this model works for a dev tool:**
+- Free tier is generous enough to prove value on a small team
+- Usage gates (concurrent PR channels) scale naturally with team size
+- Per-workspace pricing is simple to understand and avoids per-seat counting complexity
+- Annual discount (2 months free) incentivizes commitment
+
+### Stripe Integration (Backend)
+- [ ] Add `stripe` npm package and create a `BillingModule` in NestJS
+- [ ] Create Stripe products and prices for each tier (use Stripe Price IDs in config, not hardcoded)
+- [ ] Add Prisma models: `Subscription` (workspaceId, stripeCustomerId, stripeSubscriptionId, status, currentPeriodEnd, tier), `UsageRecord` (workspaceId, metric, count, periodStart, periodEnd), `Invoice` (workspaceId, stripeInvoiceId, amount, status, pdfUrl)
+- [ ] Implement `BillingService` with methods: createCheckoutSession, createPortalSession, getSubscription, cancelSubscription, changeplan
+- [ ] Add `POST /api/billing/checkout` — create Stripe Checkout session (redirect user to Stripe-hosted payment page)
+- [ ] Add `POST /api/billing/portal` — create Stripe Customer Portal session (for managing payment methods, viewing invoices, canceling)
+- [ ] Add `GET /api/billing/subscription` — return current workspace subscription status and usage
+- [ ] Add `POST /api/webhooks/stripe` — receive Stripe webhooks (signature-verified, separate from GitHub/Slack webhook routes)
+
+### Stripe Webhook Handling
+- [ ] Handle `checkout.session.completed` — activate subscription, link Stripe customer to workspace
+- [ ] Handle `invoice.paid` — record successful payment, reset usage counters for new period
+- [ ] Handle `invoice.payment_failed` — notify workspace admins via email and in-app banner
+- [ ] Handle `customer.subscription.updated` — sync plan changes (upgrades/downgrades)
+- [ ] Handle `customer.subscription.deleted` — downgrade to Free tier, apply feature gates
+- [ ] Add idempotency for Stripe webhooks (reuse `WebhookDelivery` pattern with Stripe event IDs)
+
+### Feature Gating
+- [ ] Create `PlanGuard` NestJS guard that checks workspace subscription tier before allowing actions
+- [ ] Gate PR channel creation: check concurrent active channel count against tier limit
+- [ ] Gate message sync depth: Free tier only syncs comments from last 24h
+- [ ] Gate workspace creation: check total workspace count against tier limit
+- [ ] Return clear `402 Payment Required` or `403 Forbidden` responses with upgrade prompts when limits hit
+- [ ] Add `X-Plan-Limit` and `X-Plan-Usage` response headers so the frontend can show usage bars
+
+### Usage Tracking & Metering
+- [ ] Track per billing period: PR channels created, messages synced, webhook events processed
+- [ ] Increment counters in `UsageRecord` on each billable action (channel creation, message sync)
+- [ ] Add usage summary endpoint: `GET /api/billing/usage` (current period stats)
+- [ ] Optional: report usage to Stripe Billing Meter for usage-based overage charges
+- [ ] Add usage approaching-limit warnings (80%, 95%, 100%) surfaced in UI and optionally via Slack DM
+
+### Billing UI (Frontend)
+- [ ] Build pricing/plan selection page (shown to workspace admins)
+- [ ] Add "Upgrade" CTA banners when approaching or hitting plan limits
+- [ ] Integrate Stripe Checkout redirect for initial subscription
+- [ ] Integrate Stripe Customer Portal redirect for managing billing (payment method, invoices, cancel)
+- [ ] Show current plan, usage meters, and next billing date on workspace settings page
+- [ ] Show invoice history (pulled from Stripe via API or cached in DB)
+- [ ] Add plan comparison modal when users hit a feature gate
+- [ ] Handle trial expiration and grace period UI states
+
+### Payment Operations
+- [ ] Implement 14-day free trial for Team/Business (no credit card required to start)
+- [ ] Implement annual billing option (2 months free discount)
+- [ ] Add coupon/promo code support via Stripe Coupons
+- [ ] Implement grace period: 7 days after payment failure before downgrading
+- [ ] Send dunning emails on payment failure (day 1, day 3, day 7)
+- [ ] Add admin email notifications for: subscription created, payment received, payment failed, plan changed, trial ending
+- [ ] Set up Stripe Tax for automatic tax collection (or integrate with a tax provider)
 
 ### CI/CD Pipeline
 - [ ] Add GitHub Actions workflow: lint + typecheck + test on every PR
@@ -158,7 +222,7 @@ Prioritized list of work to turn erichpo from an MVP into a production SaaS. Org
 | Auth & Multi-tenancy | Production-ready | - |
 | Database Schema | Solid | - |
 | Admin Dashboard | Functional | - |
-| Billing | Not started | P0 |
+| Payment Model & Billing | Not started (detailed plan added) | P0 |
 | CI/CD | Git hooks only | P0 |
 | Tests | 1 E2E test | P0 |
 | Rate Limiting | None | P0 |

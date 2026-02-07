@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { DatabaseService } from "../database";
-import { SlackService } from "../slack/slack.service";
+import type { ConfigService } from "@nestjs/config";
+import type { DatabaseService } from "../database";
+import type { SlackService } from "../slack/slack.service";
 
 interface SlackOAuthResponse {
   ok: boolean;

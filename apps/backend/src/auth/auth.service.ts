@@ -5,9 +5,9 @@ import type {
   WorkspaceRole,
 } from "@erichpo/shared";
 import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import type { ConfigService } from "@nestjs/config";
 import * as jwt from "jsonwebtoken";
-import { DatabaseService } from "../database";
+import type { DatabaseService } from "../database";
 
 interface GitHubOAuthTokenResponse {
   access_token: string;

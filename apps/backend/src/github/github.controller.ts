@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { GitHubWebhookGuard } from "../common/guards";
-import { IntegrationService } from "../integration/integration.service";
+import type { IntegrationService } from "../integration/integration.service";
 import {
   checkRunEventSchema,
   issueCommentEventSchema,

@@ -10,6 +10,9 @@
     "dev:frontend": "pnpm --filter frontend run dev",
     "dev:backend": "pnpm --filter backend run dev",
     "test": "pnpm --filter \"./apps/*\" run test",
+    "lint": "biome lint --write .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
     "db:migrate": "pnpm --filter \"./apps/backend\" exec prisma migrate dev",
     "db:migrate:deploy": "pnpm --filter \"./apps/backend\" exec prisma migrate deploy"
   },
@@ -17,9 +20,11 @@
   "author": "",
   "license": "ISC",
   "simple-git-hooks": {
+    "pre-commit": "biome check --staged --no-errors-on-unmatched",
     "commit-msg": "pnpm commitlint --edit $1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
     "@commitlint/cli": "^20.4.1",
     "@commitlint/config-conventional": "^20.4.1",
     "simple-git-hooks": "^2.13.1"

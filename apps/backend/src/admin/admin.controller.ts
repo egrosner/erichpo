@@ -17,8 +17,8 @@ import {
   WorkspaceRoles,
   WorkspaceRolesGuard,
 } from "../auth";
-import { InviteService } from "../invite/invite.service";
-import { AdminService } from "./admin.service";
+import type { InviteService } from "../invite/invite.service";
+import type { AdminService } from "./admin.service";
 
 @Controller("api/admin")
 @UseGuards(JwtAuthGuard, WorkspaceRolesGuard)

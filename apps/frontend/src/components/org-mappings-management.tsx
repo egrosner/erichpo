@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth";
+import { LinkGitHubWizard } from "@/components/link-github-wizard";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,9 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Github, Plus, Trash2, RefreshCw } from "lucide-react";
-import { LinkGitHubWizard } from "@/components/link-github-wizard";
+import { useAuth } from "@/lib/auth";
+import { Github, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface OrgMapping {
   id: number;

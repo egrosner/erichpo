@@ -1,11 +1,11 @@
+import type { CurrentUser, WorkspaceMembership } from "@erichpo/shared";
 import {
+  type ReactNode,
   createContext,
   useContext,
-  useState,
   useEffect,
-  type ReactNode,
+  useState,
 } from "react";
-import type { CurrentUser, WorkspaceMembership } from "@erichpo/shared";
 
 interface AuthContextType {
   user: CurrentUser | null;

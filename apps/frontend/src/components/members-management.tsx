@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,27 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -37,10 +16,41 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Users, UserPlus, Trash2, ChevronsUpDown, Check, X, Link2, Copy, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import {
+  Check,
+  CheckCircle,
+  ChevronsUpDown,
+  Copy,
+  Link2,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface WorkspaceMember {
   userId: number;
@@ -131,16 +141,19 @@ function SlackUserCombobox({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedUserId === slackUser.id ? "opacity-100" : "opacity-0"
+                      selectedUserId === slackUser.id
+                        ? "opacity-100"
+                        : "opacity-0",
                     )}
                   />
                   <div className="flex flex-col">
                     <span>{slackUser.real_name || slackUser.name}</span>
-                    {slackUser.real_name && slackUser.name !== slackUser.real_name && (
-                      <span className="text-xs text-muted-foreground">
-                        @{slackUser.name}
-                      </span>
-                    )}
+                    {slackUser.real_name &&
+                      slackUser.name !== slackUser.real_name && (
+                        <span className="text-xs text-muted-foreground">
+                          @{slackUser.name}
+                        </span>
+                      )}
                   </div>
                 </CommandItem>
               ))}
@@ -195,7 +208,9 @@ export function MembersManagement() {
     if (!currentWorkspace) return;
 
     try {
-      const res = await fetch("/api/admin/slack-users", { credentials: "include" });
+      const res = await fetch("/api/admin/slack-users", {
+        credentials: "include",
+      });
       if (res.ok) {
         setSlackUsers(await res.json());
       }
@@ -208,7 +223,9 @@ export function MembersManagement() {
     if (!currentWorkspace) return;
 
     try {
-      const res = await fetch("/api/admin/user-mappings", { credentials: "include" });
+      const res = await fetch("/api/admin/user-mappings", {
+        credentials: "include",
+      });
       if (res.ok) {
         setUserMappings(await res.json());
       }
@@ -217,7 +234,10 @@ export function MembersManagement() {
     }
   };
 
-  const handleMappingChange = async (githubUsername: string, slackUserId: string | null) => {
+  const handleMappingChange = async (
+    githubUsername: string,
+    slackUserId: string | null,
+  ) => {
     setSavingMapping(githubUsername);
     setError(null);
 
@@ -237,10 +257,13 @@ export function MembersManagement() {
           setError(data.message || "Failed to save mapping");
         }
       } else {
-        const res = await fetch(`/api/admin/user-mappings/${encodeURIComponent(githubUsername)}`, {
-          method: "DELETE",
-          credentials: "include",
-        });
+        const res = await fetch(
+          `/api/admin/user-mappings/${encodeURIComponent(githubUsername)}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+          },
+        );
 
         if (res.ok) {
           await fetchUserMappings();
@@ -257,7 +280,9 @@ export function MembersManagement() {
   };
 
   const getMappedSlackUserId = (githubUsername: string): string | null => {
-    const mapping = userMappings.find((m) => m.githubUsername === githubUsername);
+    const mapping = userMappings.find(
+      (m) => m.githubUsername === githubUsername,
+    );
     return mapping?.slackUserId ?? null;
   };
 
@@ -292,7 +317,10 @@ export function MembersManagement() {
     }
   };
 
-  const handleRoleChange = async (targetUserId: number, newRole: "admin" | "user") => {
+  const handleRoleChange = async (
+    targetUserId: number,
+    newRole: "admin" | "user",
+  ) => {
     setError(null);
 
     try {
@@ -416,7 +444,10 @@ export function MembersManagement() {
               <SelectItem value="admin">Admin</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleInvite} disabled={inviting || !inviteUsername.trim()}>
+          <Button
+            onClick={handleInvite}
+            disabled={inviting || !inviteUsername.trim()}
+          >
             <UserPlus className="h-4 w-4 mr-2" />
             Invite
           </Button>
@@ -428,7 +459,8 @@ export function MembersManagement() {
             <span className="text-sm font-medium">One-Time Invite Link</span>
           </div>
           <p className="text-sm text-muted-foreground mb-3">
-            Generate a link that allows one person to join this workspace. The link expires in 7 days.
+            Generate a link that allows one person to join this workspace. The
+            link expires in 7 days.
           </p>
           {generatedLink ? (
             <div className="space-y-2">
@@ -453,7 +485,8 @@ export function MembersManagement() {
               </div>
               <Alert>
                 <AlertDescription>
-                  This link can only be used once. Copy it now or generate a new one.
+                  This link can only be used once. Copy it now or generate a new
+                  one.
                 </AlertDescription>
               </Alert>
               <Button
@@ -478,7 +511,9 @@ export function MembersManagement() {
         </div>
 
         {loading ? (
-          <div className="text-sm text-muted-foreground">Loading members...</div>
+          <div className="text-sm text-muted-foreground">
+            Loading members...
+          </div>
         ) : (
           <Table>
             <TableHeader>
@@ -521,7 +556,9 @@ export function MembersManagement() {
                   <TableCell>
                     <SlackUserCombobox
                       slackUsers={slackUsers}
-                      selectedUserId={getMappedSlackUserId(member.githubUsername)}
+                      selectedUserId={getMappedSlackUserId(
+                        member.githubUsername,
+                      )}
                       onSelect={(slackUserId) =>
                         handleMappingChange(member.githubUsername, slackUserId)
                       }
@@ -530,7 +567,11 @@ export function MembersManagement() {
                   </TableCell>
                   <TableCell>
                     {member.userId === user?.id ? (
-                      <Badge variant={member.role === "admin" ? "default" : "secondary"}>
+                      <Badge
+                        variant={
+                          member.role === "admin" ? "default" : "secondary"
+                        }
+                      >
                         {member.role}
                       </Badge>
                     ) : (
@@ -555,7 +596,9 @@ export function MembersManagement() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemove(member.userId, member.githubUsername)}
+                        onClick={() =>
+                          handleRemove(member.userId, member.githubUsername)
+                        }
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>

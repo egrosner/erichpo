@@ -22,6 +22,12 @@
     "indentStyle": "space",
     "indentWidth": 2
   },
+  "json": {
+    "parser": {
+      "allowComments": true,
+      "allowTrailingCommas": true
+    }
+  },
   "files": {
     "ignore": ["dist", "node_modules"]
   }

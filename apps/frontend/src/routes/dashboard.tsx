@@ -1,19 +1,6 @@
-import { createRoute, Link, useSearch } from "@tanstack/react-router";
-import { Route as rootRoute } from "./__root";
-import { ProtectedRoute } from "@/components/protected-route";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { MembersManagement } from "@/components/members-management";
 import { OrgMappingsManagement } from "@/components/org-mappings-management";
-import { UserPreferences } from "@/components/user-preferences";
-import { useAuth } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { ProtectedRoute } from "@/components/protected-route";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -26,18 +13,31 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
-  GitBranch,
-  LogOut,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { UserPreferences } from "@/components/user-preferences";
+import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { useAuth } from "@/lib/auth";
+import { Link, createRoute, useSearch } from "@tanstack/react-router";
+import {
+  AlertCircle,
   Building2,
   CheckCircle,
-  AlertCircle,
-  X,
+  GitBranch,
+  LogOut,
   Trash2,
+  X,
 } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
-import { WorkspaceSetupWizard } from "@/components/workspace-setup-wizard";
+import { useEffect, useMemo, useState } from "react";
+import { Route as rootRoute } from "./__root";
 
 type DashboardSearch = {
   invited?: string;
@@ -95,8 +95,9 @@ function DashboardContent() {
   const [showGitHubLinkedBanner, setShowGitHubLinkedBanner] = useState(
     github_linked === "success",
   );
-  const [showGitHubErrorBanner, setShowGitHubErrorBanner] =
-    useState(!!github_setup_error);
+  const [showGitHubErrorBanner, setShowGitHubErrorBanner] = useState(
+    !!github_setup_error,
+  );
   const [wizardOpen, setWizardOpen] = useState(false);
 
   // Parse OAuth result from URL params

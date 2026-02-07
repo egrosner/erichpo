@@ -1,5 +1,5 @@
-import { Building2, Slack } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Building2, Slack } from "lucide-react";
 
 interface StepConnectSlackProps {
   installationId: number;

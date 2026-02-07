@@ -8,9 +8,9 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { GetCurrentUser, JwtAuthGuard } from "../auth";
-import {
+import type {
   PreferencesService,
-  type UserPreferences,
+  UserPreferences,
 } from "./preferences.service";
 
 @Controller("api/preferences")

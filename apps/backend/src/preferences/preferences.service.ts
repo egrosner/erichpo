@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { DatabaseService } from "../database";
+import { DatabaseService } from "../database";
 
 export interface UserPreferences {
   slackMentions: boolean;

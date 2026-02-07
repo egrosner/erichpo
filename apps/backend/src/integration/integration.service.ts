@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
-import type { DatabaseService } from "../database";
-import type { GitHubService } from "../github/github.service";
+import { ConfigService } from "@nestjs/config";
+import { DatabaseService } from "../database";
+import { GitHubService } from "../github/github.service";
 import type {
   CheckRunEvent,
   IssueCommentEvent,
@@ -9,7 +9,7 @@ import type {
   PullRequestReviewCommentEvent,
   PullRequestReviewEvent,
 } from "../github/schemas/webhook.schema";
-import type { SlackBlock, SlackService } from "../slack/slack.service";
+import { type SlackBlock, SlackService } from "../slack/slack.service";
 
 @Injectable()
 export class IntegrationService {

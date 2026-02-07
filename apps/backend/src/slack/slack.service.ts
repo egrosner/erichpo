@@ -1,7 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import type { ConfigService } from "@nestjs/config";
+import { ConfigService } from "@nestjs/config";
 import { WebClient } from "@slack/web-api";
-import type { DatabaseService } from "../database";
+import { DatabaseService } from "../database";
 
 export interface SlackBlock {
   type: string;

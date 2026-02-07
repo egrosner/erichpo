@@ -5,8 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AuthService } from "../auth";
 import { DatabaseService } from "../database";
+import { EmailService } from "../email/email.service";
 
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -30,6 +32,8 @@ export class InviteService {
   constructor(
     private readonly db: DatabaseService,
     private readonly authService: AuthService,
+    private readonly emailService: EmailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async createInviteLink(
@@ -72,6 +76,109 @@ export class InviteService {
       workspaceName: invite.slackWorkspace.teamName,
       createdBy: invite.createdBy.githubUsername,
     };
+  }
+
+  async sendEmailInvites(
+    workspaceId: number,
+    createdById: number,
+    emails: string[],
+  ): Promise<{ sent: string[]; failed: { email: string; reason: string }[] }> {
+    if (!this.emailService.isConfigured) {
+      throw new BadRequestException(
+        "Email service is not configured. Set RESEND_API_KEY to enable email invites.",
+      );
+    }
+
+    const workspace = await this.db.slackWorkspace.findUnique({
+      where: { id: workspaceId },
+      select: { teamName: true },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException("Workspace not found");
+    }
+
+    const inviter = await this.db.user.findUnique({
+      where: { id: createdById },
+      select: { githubUsername: true },
+    });
+
+    const appBaseUrl = this.configService.get<string>("appBaseUrl");
+    const sent: string[] = [];
+    const failed: { email: string; reason: string }[] = [];
+
+    for (const email of emails) {
+      try {
+        // Create a single-use invite link for this email
+        const token = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
+
+        await this.db.inviteLink.create({
+          data: {
+            token,
+            expiresAt,
+            maxUses: 1,
+            email,
+            slackWorkspaceId: workspaceId,
+            createdById,
+          },
+        });
+
+        const inviteUrl = `${appBaseUrl}/api/invite/${token}`;
+
+        await this.emailService.sendWorkspaceInvite(
+          email,
+          inviteUrl,
+          workspace.teamName,
+          inviter?.githubUsername ?? "A team member",
+        );
+
+        sent.push(email);
+        this.logger.log(
+          `Sent email invite to ${email} for workspace ${workspaceId}`,
+        );
+      } catch (err) {
+        const reason = (err as Error).message || "Unknown error";
+        failed.push({ email, reason });
+        this.logger.warn(`Failed to send email invite to ${email}: ${reason}`);
+      }
+    }
+
+    return { sent, failed };
+  }
+
+  async listEmailInvites(workspaceId: number) {
+    const invites = await this.db.inviteLink.findMany({
+      where: {
+        slackWorkspaceId: workspaceId,
+        email: { not: null },
+      },
+      include: {
+        createdBy: {
+          select: { githubUsername: true },
+        },
+        _count: {
+          select: { usages: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return invites.map((invite) => ({
+      id: invite.id,
+      email: invite.email,
+      expiresAt: invite.expiresAt,
+      createdAt: invite.createdAt,
+      createdBy: invite.createdBy.githubUsername,
+      redeemed: invite._count.usages > 0,
+      status:
+        invite._count.usages > 0
+          ? "redeemed"
+          : invite.expiresAt < new Date()
+            ? "expired"
+            : "pending",
+    }));
   }
 
   async validateInviteToken(token: string): Promise<InviteValidation> {

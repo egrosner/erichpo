@@ -37,6 +37,13 @@ const configSchema = z.object({
     adminGithubIds: z.string().optional(), // Comma-separated GitHub user IDs
     cookieSecure: z.boolean().default(true),
   }),
+
+  email: z.object({
+    resendApiKey: z.string().optional(),
+    from: z.string().default("erichpo <noreply@erichpo.erichgrosner.com>"),
+  }),
+
+  appBaseUrl: z.string().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -84,6 +91,13 @@ export function configuration(): Config {
       adminGithubIds: process.env.ADMIN_GITHUB_IDS,
       cookieSecure: process.env.NODE_ENV === "production",
     },
+
+    email: {
+      resendApiKey: process.env.RESEND_API_KEY,
+      from: process.env.EMAIL_FROM,
+    },
+
+    appBaseUrl: process.env.APP_BASE_URL,
   };
 
   return configSchema.parse(config);

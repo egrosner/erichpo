@@ -226,6 +226,7 @@ model InviteLink {
   token            String           @unique
   expiresAt        DateTime
   maxUses          Int?             // null = unlimited, 1 = one-time, N = N uses
+  email            String?          // Recipient email (null for general invite links)
   slackWorkspaceId Int
   slackWorkspace   SlackWorkspace   @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
   createdById      Int

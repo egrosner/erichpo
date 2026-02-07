@@ -45,6 +45,7 @@ import {
   ChevronsUpDown,
   Copy,
   Link2,
+  Mail,
   Trash2,
   UserPlus,
   Users,
@@ -96,7 +97,6 @@ function SlackUserCombobox({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          role="combobox"
           aria-expanded={open}
           className="w-48 justify-between"
           disabled={disabled}
@@ -182,7 +182,11 @@ export function MembersManagement() {
   const [inviteLinkType, setInviteLinkType] = useState<
     "unlimited" | "one-time"
   >("unlimited");
+  const [emailInput, setEmailInput] = useState("");
+  const [sendingEmails, setSendingEmails] = useState(false);
+  const [emailSuccess, setEmailSuccess] = useState<string | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-fetch when workspace changes
   useEffect(() => {
     fetchMembers();
     fetchSlackUsers();
@@ -410,6 +414,54 @@ export function MembersManagement() {
     }
   };
 
+  const handleEmailInvite = async () => {
+    const emails = emailInput
+      .split(/[,\n]+/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+
+    if (emails.length === 0) return;
+
+    setSendingEmails(true);
+    setError(null);
+    setEmailSuccess(null);
+
+    try {
+      const res = await fetch("/api/admin/invite-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ emails }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const sentCount = data.sent?.length ?? 0;
+        const failedCount = data.failed?.length ?? 0;
+
+        if (sentCount > 0) {
+          setEmailSuccess(
+            `Sent ${sentCount} invite${sentCount > 1 ? "s" : ""}${failedCount > 0 ? ` (${failedCount} failed)` : ""}`,
+          );
+          setEmailInput("");
+          setTimeout(() => setEmailSuccess(null), 5000);
+        }
+        if (failedCount > 0 && sentCount === 0) {
+          setError(
+            `Failed to send invites: ${data.failed.map((f: { email: string; reason: string }) => f.email).join(", ")}`,
+          );
+        }
+      } else {
+        const data = await res.json();
+        setError(data.message || "Failed to send email invites");
+      }
+    } catch (err) {
+      setError("Failed to send email invites");
+    } finally {
+      setSendingEmails(false);
+    }
+  };
+
   if (!currentWorkspace) {
     return null;
   }
@@ -458,6 +510,38 @@ export function MembersManagement() {
             <UserPlus className="h-4 w-4 mr-2" />
             Invite
           </Button>
+        </div>
+
+        <div className="border-t pt-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Mail className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Invite by Email</span>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Send invite emails to people who don't have accounts yet. They'll
+            sign in with GitHub when they accept.
+          </p>
+          {emailSuccess && (
+            <div className="p-3 text-sm bg-green-500/10 text-green-700 dark:text-green-400 rounded-md mb-3">
+              {emailSuccess}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Input
+              placeholder="email@example.com, another@example.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleEmailInvite()}
+            />
+            <Button
+              onClick={handleEmailInvite}
+              disabled={sendingEmails || !emailInput.trim()}
+              variant="outline"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              {sendingEmails ? "Sending..." : "Send"}
+            </Button>
+          </div>
         </div>
 
         <div className="border-t pt-4">

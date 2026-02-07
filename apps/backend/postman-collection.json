@@ -609,7 +609,12 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "invite-links"]
             },
-            "description": "Creates a one-time invite link for the current workspace. The link expires in 7 days and can only be used once. Returns the invite token and expiration date."
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maxUses\": null\n}"
+            },
+            "description": "Creates an invite link for the current workspace. The link expires in 7 days. Set maxUses to null for unlimited uses, 1 for one-time use, or any positive integer to limit the number of uses. Returns the invite token, expiration date, and maxUses."
           }
         },
         {
@@ -621,7 +626,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "admin", "invite-links"]
             },
-            "description": "Lists all invite links for the current workspace, including their status (active, used, or expired)."
+            "description": "Lists all invite links for the current workspace, including their status (active, exhausted, or expired), maxUses, and useCount."
           }
         },
         {

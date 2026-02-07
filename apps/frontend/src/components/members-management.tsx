@@ -179,6 +179,9 @@ export function MembersManagement() {
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [inviteLinkType, setInviteLinkType] = useState<
+    "unlimited" | "one-time"
+  >("unlimited");
 
   useEffect(() => {
     fetchMembers();
@@ -373,7 +376,11 @@ export function MembersManagement() {
     try {
       const res = await fetch("/api/admin/invite-links", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
+        body: JSON.stringify({
+          maxUses: inviteLinkType === "one-time" ? 1 : null,
+        }),
       });
 
       if (res.ok) {
@@ -456,12 +463,28 @@ export function MembersManagement() {
         <div className="border-t pt-4">
           <div className="flex items-center gap-2 mb-2">
             <Link2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">One-Time Invite Link</span>
+            <span className="text-sm font-medium">Invite Link</span>
           </div>
           <p className="text-sm text-muted-foreground mb-3">
-            Generate a link that allows one person to join this workspace. The
-            link expires in 7 days.
+            Generate a link to share with people so they can join this
+            workspace. The link expires in 7 days.
           </p>
+          <div className="flex items-center gap-2 mb-3">
+            <Select
+              value={inviteLinkType}
+              onValueChange={(v) =>
+                setInviteLinkType(v as "unlimited" | "one-time")
+              }
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unlimited">Unlimited uses</SelectItem>
+                <SelectItem value="one-time">One-time use</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           {generatedLink ? (
             <div className="space-y-2">
               <div className="flex gap-2">
@@ -485,8 +508,9 @@ export function MembersManagement() {
               </div>
               <Alert>
                 <AlertDescription>
-                  This link can only be used once. Copy it now or generate a new
-                  one.
+                  {inviteLinkType === "one-time"
+                    ? "This link can only be used once. Copy it now or generate a new one."
+                    : "This link can be used by anyone until it expires. Copy it now or generate a new one."}
                 </AlertDescription>
               </Alert>
               <Button

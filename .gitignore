@@ -35,6 +35,3 @@ coverage/
 # Logs
 *.log
 
-# Git worktrees (Crystal)
-/worktrees/
-/worktree-*/

@@ -15,5 +15,13 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "simple-git-hooks": {
+    "commit-msg": "pnpm commitlint --edit $1"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.4.1",
+    "@commitlint/config-conventional": "^20.4.1",
+    "simple-git-hooks": "^2.13.1"
+  }
 }

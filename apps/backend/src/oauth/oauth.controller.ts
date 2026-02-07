@@ -12,8 +12,8 @@ import {
 } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { GetCurrentUser, JwtAuthGuard } from "../auth";
-import type { AuthService } from "../auth/auth.service";
-import type { OAuthService } from "./oauth.service";
+import { AuthService } from "../auth/auth.service";
+import { OAuthService } from "./oauth.service";
 
 @Controller("api/oauth/slack")
 export class OAuthController {

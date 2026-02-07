@@ -5,9 +5,9 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import type { DatabaseService } from "../database";
-import type { GitHubService } from "../github/github.service";
-import type { SlackService } from "../slack/slack.service";
+import { DatabaseService } from "../database";
+import { GitHubService } from "../github/github.service";
+import { SlackService } from "../slack/slack.service";
 
 @Injectable()
 export class AdminService {

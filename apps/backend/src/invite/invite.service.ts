@@ -5,8 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
-import type { AuthService } from "../auth";
-import type { DatabaseService } from "../database";
+import { AuthService } from "../auth";
+import { DatabaseService } from "../database";
 
 const INVITE_EXPIRY_DAYS = 7;
 

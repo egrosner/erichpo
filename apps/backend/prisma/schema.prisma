@@ -21,7 +21,7 @@ model User {
   githubAccessToken    String?               // OAuth token for posting as user
   sessions             Session[]
   workspaceMemberships WorkspaceMembership[]
-  usedInviteLinks      InviteLink[]          @relation("UsedInviteLinks")
+  inviteLinkUsages     InviteLinkUsage[]
   createdInviteLinks   InviteLink[]          @relation("CreatedInviteLinks")
 
   @@map("users")
@@ -219,20 +219,32 @@ model WorkspaceMembership {
   @@map("workspace_memberships")
 }
 
-// One-time invite link for workspace membership
+// Invite link for workspace membership (supports unlimited or limited uses)
 model InviteLink {
-  id               Int            @id @default(autoincrement())
-  createdAt        DateTime       @default(now())
-  token            String         @unique
+  id               Int              @id @default(autoincrement())
+  createdAt        DateTime         @default(now())
+  token            String           @unique
   expiresAt        DateTime
-  usedAt           DateTime?
-  usedById         Int?
-  usedBy           User?          @relation("UsedInviteLinks", fields: [usedById], references: [id])
+  maxUses          Int?             // null = unlimited, 1 = one-time, N = N uses
   slackWorkspaceId Int
-  slackWorkspace   SlackWorkspace @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
+  slackWorkspace   SlackWorkspace   @relation(fields: [slackWorkspaceId], references: [id], onDelete: Cascade)
   createdById      Int
-  createdBy        User           @relation("CreatedInviteLinks", fields: [createdById], references: [id])
+  createdBy        User             @relation("CreatedInviteLinks", fields: [createdById], references: [id])
+  usages           InviteLinkUsage[]
 
   @@index([token])
   @@map("invite_links")
+}
+
+// Tracks each use of an invite link
+model InviteLinkUsage {
+  id           Int        @id @default(autoincrement())
+  usedAt       DateTime   @default(now())
+  inviteLinkId Int
+  inviteLink   InviteLink @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
+  userId       Int
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteLinkId, userId])
+  @@map("invite_link_usages")
 }

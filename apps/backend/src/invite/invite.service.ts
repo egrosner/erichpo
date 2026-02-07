@@ -11,7 +11,7 @@ import { DatabaseService } from "../database";
 const INVITE_EXPIRY_DAYS = 7;
 
 type InviteValidation =
-  | { valid: false; error: "invalid" | "already_used" | "expired" }
+  | { valid: false; error: "invalid" | "max_uses_reached" | "expired" }
   | {
       valid: true;
       invite: {
@@ -32,7 +32,11 @@ export class InviteService {
     private readonly authService: AuthService,
   ) {}
 
-  async createInviteLink(workspaceId: number, createdById: number) {
+  async createInviteLink(
+    workspaceId: number,
+    createdById: number,
+    maxUses?: number | null,
+  ) {
     const token = crypto.randomUUID();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + INVITE_EXPIRY_DAYS);
@@ -41,6 +45,7 @@ export class InviteService {
       data: {
         token,
         expiresAt,
+        maxUses: maxUses ?? null,
         slackWorkspaceId: workspaceId,
         createdById,
       },
@@ -55,7 +60,7 @@ export class InviteService {
     });
 
     this.logger.log(
-      `Created invite link for workspace ${workspaceId} by user ${createdById}`,
+      `Created invite link for workspace ${workspaceId} by user ${createdById} (maxUses: ${maxUses ?? "unlimited"})`,
     );
 
     return {
@@ -63,6 +68,7 @@ export class InviteService {
       token: invite.token,
       expiresAt: invite.expiresAt,
       createdAt: invite.createdAt,
+      maxUses: invite.maxUses,
       workspaceName: invite.slackWorkspace.teamName,
       createdBy: invite.createdBy.githubUsername,
     };
@@ -75,6 +81,9 @@ export class InviteService {
         slackWorkspace: {
           select: { id: true, teamId: true, teamName: true },
         },
+        _count: {
+          select: { usages: true },
+        },
       },
     });
 
@@ -82,8 +91,8 @@ export class InviteService {
       return { valid: false, error: "invalid" };
     }
 
-    if (invite.usedAt) {
-      return { valid: false, error: "already_used" };
+    if (invite.maxUses !== null && invite._count.usages >= invite.maxUses) {
+      return { valid: false, error: "max_uses_reached" };
     }
 
     if (invite.expiresAt < new Date()) {
@@ -102,12 +111,12 @@ export class InviteService {
     };
   }
 
-  getValidationErrorMessage(error: "invalid" | "already_used" | "expired") {
+  getValidationErrorMessage(error: "invalid" | "max_uses_reached" | "expired") {
     switch (error) {
       case "invalid":
         return "Invalid invite link";
-      case "already_used":
-        return "This invite link has already been used";
+      case "max_uses_reached":
+        return "This invite link has reached its maximum number of uses";
       case "expired":
         return "This invite link has expired";
     }
@@ -147,8 +156,8 @@ export class InviteService {
         createdBy: {
           select: { githubUsername: true },
         },
-        usedBy: {
-          select: { githubUsername: true },
+        _count: {
+          select: { usages: true },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -159,14 +168,15 @@ export class InviteService {
       token: invite.token,
       expiresAt: invite.expiresAt,
       createdAt: invite.createdAt,
+      maxUses: invite.maxUses,
+      useCount: invite._count.usages,
       createdBy: invite.createdBy.githubUsername,
-      usedAt: invite.usedAt,
-      usedBy: invite.usedBy?.githubUsername ?? null,
-      status: invite.usedAt
-        ? "used"
-        : invite.expiresAt < new Date()
-          ? "expired"
-          : "active",
+      status:
+        invite.maxUses !== null && invite._count.usages >= invite.maxUses
+          ? "exhausted"
+          : invite.expiresAt < new Date()
+            ? "expired"
+            : "active",
     }));
   }
 
@@ -215,11 +225,10 @@ export class InviteService {
     }
 
     const result = await this.db.$transaction(async (tx) => {
-      await tx.inviteLink.update({
-        where: { token },
+      await tx.inviteLinkUsage.create({
         data: {
-          usedAt: new Date(),
-          usedById: userId,
+          inviteLinkId: invite.id,
+          userId,
         },
       });
 

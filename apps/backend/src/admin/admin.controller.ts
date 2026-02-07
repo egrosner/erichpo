@@ -196,13 +196,17 @@ export class AdminController {
   // Invite link endpoints
 
   @Post("invite-links")
-  async createInviteLink(@GetCurrentUser() user: CurrentUser) {
+  async createInviteLink(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() body: { maxUses?: number | null },
+  ) {
     if (!user.currentWorkspace) {
       throw new BadRequestException("No workspace context set");
     }
     return this.inviteService.createInviteLink(
       user.currentWorkspace.workspaceId,
       user.id,
+      body.maxUses,
     );
   }
 

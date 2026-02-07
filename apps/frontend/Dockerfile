@@ -33,7 +33,11 @@ RUN echo 'server { \
     listen 80; \
     root /usr/share/nginx/html; \
     index index.html; \
+    location /assets/ { \
+        add_header Cache-Control "public, max-age=31536000, immutable"; \
+    } \
     location / { \
+        add_header Cache-Control "no-cache"; \
         try_files $uri $uri/ /index.html; \
     } \
 }' > /etc/nginx/conf.d/default.conf

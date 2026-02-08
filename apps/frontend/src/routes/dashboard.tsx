@@ -175,7 +175,7 @@ function DashboardContent() {
           <div className="flex items-center gap-4">
             <WorkspaceSwitcher />
             <span className="text-sm text-muted-foreground">
-              {user?.githubUsername}
+              {user?.githubUsername ?? user?.email}
             </span>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -276,7 +276,9 @@ function DashboardContent() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Welcome, {user?.githubUsername}</CardTitle>
+                <CardTitle>
+                  Welcome, {user?.githubUsername ?? user?.email}
+                </CardTitle>
                 <CardDescription>
                   {currentWorkspace
                     ? `Connected to ${currentWorkspace.teamName}`

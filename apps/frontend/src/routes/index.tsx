@@ -212,7 +212,7 @@ function Step({
 }
 
 function HeaderNav() {
-  const { isAuthenticated, isLoading, user, login } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   return (
     <nav className="flex items-center gap-6">
@@ -233,15 +233,15 @@ function HeaderNav() {
       ) : isAuthenticated ? (
         <>
           <span className="text-sm text-muted-foreground">
-            {user?.githubUsername}
+            {user?.githubUsername ?? user?.email}
           </span>
           <Button asChild>
             <Link to="/dashboard">Dashboard</Link>
           </Button>
         </>
       ) : (
-        <Button variant="outline" onClick={login}>
-          Sign in with GitHub
+        <Button variant="outline" asChild>
+          <Link to="/login">Sign in</Link>
         </Button>
       )}
     </nav>

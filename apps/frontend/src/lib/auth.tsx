@@ -2,6 +2,7 @@ import type { CurrentUser, WorkspaceMembership } from "@erichpo/shared";
 import {
   type ReactNode,
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -16,6 +17,8 @@ interface AuthContextType {
   isWorkspaceAdmin: boolean;
   hasWorkspaces: boolean;
   login: () => void;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refetch: () => Promise<void>;
   switchWorkspace: (workspaceId: number) => Promise<void>;
@@ -27,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUser = async () => {
+  const fetchUser = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me", { credentials: "include" });
       if (res.ok) {
@@ -40,14 +43,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [fetchUser]);
 
   const login = () => {
     window.location.href = "/api/auth/github";
+  };
+
+  const loginWithPassword = async (email: string, password: string) => {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || "Login failed");
+    }
+
+    await fetchUser();
+  };
+
+  const register = async (email: string, password: string) => {
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.message || "Registration failed");
+    }
+
+    await fetchUser();
   };
 
   const logout = async () => {
@@ -91,6 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isWorkspaceAdmin,
         hasWorkspaces,
         login,
+        loginWithPassword,
+        register,
         logout,
         refetch: fetchUser,
         switchWorkspace,

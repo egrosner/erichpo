@@ -101,7 +101,7 @@ function NoWorkspacePage() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
-              {user?.githubUsername}
+              {user?.githubUsername ?? user?.email}
             </span>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4 mr-2" />
@@ -148,7 +148,7 @@ function NoWorkspacePage() {
                     Ask a workspace admin to invite you using your GitHub
                     username:{" "}
                     <code className="bg-muted px-1 rounded">
-                      {user?.githubUsername}
+                      {user?.githubUsername ?? user?.email}
                     </code>
                   </p>
                 </div>

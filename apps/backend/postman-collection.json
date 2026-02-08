@@ -642,6 +642,35 @@
           }
         },
         {
+          "name": "Send Email Invites",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/invite-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "invite-email"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emails\": [\"user@example.com\", \"another@example.com\"]\n}"
+            },
+            "description": "Sends workspace invite emails to the specified addresses. Creates a single-use invite link per email and sends it via Resend. Requires RESEND_API_KEY to be configured. Maximum 50 emails per request. Returns { sent: string[], failed: { email: string, reason: string }[] }."
+          }
+        },
+        {
+          "name": "List Email Invites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/email-invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "email-invites"]
+            },
+            "description": "Lists all email invites for the current workspace with their status (pending, redeemed, or expired)."
+          }
+        },
+        {
           "name": "Delete Invite Link",
           "request": {
             "method": "DELETE",

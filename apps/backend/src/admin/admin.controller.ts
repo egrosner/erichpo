@@ -193,6 +193,39 @@ export class AdminController {
     );
   }
 
+  // Email invite endpoints
+
+  @Post("invite-email")
+  async sendEmailInvites(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() body: { emails: string[] },
+  ) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    if (!body.emails?.length) {
+      throw new BadRequestException("At least one email is required");
+    }
+    if (body.emails.length > 50) {
+      throw new BadRequestException("Cannot send more than 50 invites at once");
+    }
+    return this.inviteService.sendEmailInvites(
+      user.currentWorkspace.workspaceId,
+      user.id,
+      body.emails,
+    );
+  }
+
+  @Get("email-invites")
+  async listEmailInvites(@GetCurrentUser() user: CurrentUser) {
+    if (!user.currentWorkspace) {
+      throw new BadRequestException("No workspace context set");
+    }
+    return this.inviteService.listEmailInvites(
+      user.currentWorkspace.workspaceId,
+    );
+  }
+
   // Invite link endpoints
 
   @Post("invite-links")

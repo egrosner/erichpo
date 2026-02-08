@@ -213,6 +213,40 @@
           }
         },
         {
+          "name": "Register with Email/Password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "description": "Registers a new user with email and password. Sets an auth_token cookie on success. Password must be at least 8 characters. Returns 409 if email is already registered."
+          }
+        },
+        {
+          "name": "Login with Email/Password",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "description": "Authenticates a user with email and password. Sets an auth_token cookie on success. Returns 401 if credentials are invalid."
+          }
+        },
+        {
           "name": "Get Current User",
           "request": {
             "method": "GET",
@@ -639,6 +673,35 @@
               "path": ["api", "admin", "workspace"]
             },
             "description": "Permanently deletes the current workspace and all associated data including org mappings, user mappings, PR channel mappings, CI data, members, and invite links. This action is irreversible. Requires workspace admin role."
+          }
+        },
+        {
+          "name": "Send Email Invites",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/invite-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "invite-email"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emails\": [\"user@example.com\", \"another@example.com\"]\n}"
+            },
+            "description": "Sends workspace invite emails to the specified addresses. Creates a single-use invite link per email and sends it via Resend. Requires RESEND_API_KEY to be configured. Maximum 50 emails per request. Returns { sent: string[], failed: { email: string, reason: string }[] }."
+          }
+        },
+        {
+          "name": "List Email Invites",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/email-invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "email-invites"]
+            },
+            "description": "Lists all email invites for the current workspace with their status (pending, redeemed, or expired)."
           }
         },
         {

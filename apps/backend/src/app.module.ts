@@ -4,6 +4,7 @@ import { AppController } from "./app.controller";
 import { AuthModule } from "./auth";
 import { ConfigModule } from "./config";
 import { DatabaseModule } from "./database";
+import { EmailModule } from "./email/email.module";
 import { IntegrationModule } from "./integration";
 import { InviteModule } from "./invite/invite.module";
 import { OAuthModule } from "./oauth/oauth.module";
@@ -13,6 +14,7 @@ import { PreferencesModule } from "./preferences";
   imports: [
     ConfigModule,
     DatabaseModule,
+    EmailModule,
     AuthModule,
     IntegrationModule,
     AdminModule,
